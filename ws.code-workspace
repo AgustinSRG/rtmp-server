@@ -6,6 +6,8 @@
 	],
 	"settings": {
 		"files.exclude": {
+			"rtmp-server": true,
+			"rtmp-server.exe": true,
 		},
 	}
 }
