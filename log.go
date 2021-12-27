@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -15,7 +16,7 @@ func LogLine(line string) {
 	tm := time.Now()
 	LOG_MUTEX.Lock()
 	defer LOG_MUTEX.Unlock()
-	fmt.Printf("[%s] %s\n", tm.Local(), line)
+	fmt.Printf("[%s] %s\n", tm.Format("2006-01-02 15:04:05"), line)
 }
 
 func LogWarning(line string) {
@@ -32,9 +33,9 @@ func LogError(err error) {
 
 var LOG_REQUESTS_ENABLED = (os.Getenv("LOG_REQUESTS") != "NO")
 
-func LogRequest(line string) {
+func LogRequest(session_id uint64, ip string, line string) {
 	if LOG_REQUESTS_ENABLED {
-		LogLine("[REQUEST] " + line)
+		LogLine("[REQUEST] #" + strconv.Itoa(int(session_id)) + " (" + ip + ") " + line)
 	}
 }
 

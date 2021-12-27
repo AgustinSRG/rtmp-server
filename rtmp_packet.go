@@ -16,8 +16,11 @@ type RTMPPacketHeader struct {
 }
 
 type RTMPPacket struct {
-	header  RTMPPacketHeader
-	payload []byte
+	header   RTMPPacketHeader
+	clock    uint32
+	payload  []byte
+	capacity uint32
+	bytes    uint32
 }
 
 func createBlankRTMPPacket() RTMPPacket {
@@ -30,6 +33,9 @@ func createBlankRTMPPacket() RTMPPacket {
 			stream_id:   0,
 			length:      0,
 		},
-		payload: []byte{},
+		clock:    0,
+		payload:  []byte{},
+		capacity: 0,
+		bytes:    0,
 	}
 }

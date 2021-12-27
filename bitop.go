@@ -20,7 +20,7 @@ func createBitop(buffer []byte) Bitop {
 	}
 }
 
-func (b Bitop) Read(n uint32) uint32 {
+func (b *Bitop) Read(n uint32) uint32 {
 	var v uint32
 	var d uint32
 
@@ -56,7 +56,7 @@ func (b Bitop) Read(n uint32) uint32 {
 	return v
 }
 
-func (b Bitop) Look(n uint32) uint32 {
+func (b *Bitop) Look(n uint32) uint32 {
 	var p uint32
 	var o uint32
 	var v uint32
@@ -72,7 +72,7 @@ func (b Bitop) Look(n uint32) uint32 {
 	return v
 }
 
-func (b Bitop) ReadGolomb() uint32 {
+func (b *Bitop) ReadGolomb() uint32 {
 	var n uint32
 
 	n = 0

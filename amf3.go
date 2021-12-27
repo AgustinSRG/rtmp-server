@@ -40,7 +40,7 @@ func createAMF3Value(amf_type byte) AMF3Value {
 	}
 }
 
-func (v AMF3Value) GetBool() bool {
+func (v *AMF3Value) GetBool() bool {
 	return v.amf_type == AMF3_TYPE_TRUE
 }
 
@@ -124,7 +124,7 @@ func amf3EncodeByteArray(b []byte) []byte {
 
 /* Decoding */
 
-func (s AMFDecodingStream) amf3decUI29() uint32 {
+func (s *AMFDecodingStream) amf3decUI29() uint32 {
 	var val uint32
 	var len uint32
 	var ended bool
@@ -151,7 +151,7 @@ func (s AMFDecodingStream) amf3decUI29() uint32 {
 	return val
 }
 
-func (s AMFDecodingStream) ReadAMF3() AMF3Value {
+func (s *AMFDecodingStream) ReadAMF3() AMF3Value {
 	amf_type := s.Read(1)[0]
 	r := createAMF3Value(amf_type)
 	switch amf_type {
@@ -174,13 +174,13 @@ func (s AMFDecodingStream) ReadAMF3() AMF3Value {
 	return r
 }
 
-func (s AMFDecodingStream) ReadAMF3String() string {
+func (s *AMFDecodingStream) ReadAMF3String() string {
 	l := s.amf3decUI29()
 	strBytes := s.Read(int(l))
 	return string(strBytes)
 }
 
-func (s AMFDecodingStream) ReadAMF3ByteArray() []byte {
+func (s *AMFDecodingStream) ReadAMF3ByteArray() []byte {
 	l := s.amf3decUI29()
 	strBytes := s.Read(int(l))
 	return strBytes

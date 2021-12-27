@@ -37,21 +37,21 @@ type AMF0Value struct {
 	amf3      *AMF3Value
 }
 
-func (v AMF0Value) SetFloatVal(val float64) {
+func (v *AMF0Value) SetFloatVal(val float64) {
 	v.float_val = val
 	v.int_val = int64(math.Float64bits(val))
 }
 
-func (v AMF0Value) SetIntegerVal(val int64) {
+func (v *AMF0Value) SetIntegerVal(val int64) {
 	v.int_val = val
 	v.float_val = math.Float64frombits(uint64(val))
 }
 
-func (v AMF0Value) IsAMF3() bool {
+func (v *AMF0Value) IsAMF3() bool {
 	return v.amf_type == AMF0_TYPE_SWITCH_AMF3 && v.amf3 != nil
 }
 
-func (v AMF0Value) IsUndefined() bool {
+func (v *AMF0Value) IsUndefined() bool {
 	if v.IsAMF3() {
 		return v.amf3.amf_type == AMF3_TYPE_UNDEFINED
 	} else {
@@ -59,7 +59,7 @@ func (v AMF0Value) IsUndefined() bool {
 	}
 }
 
-func (v AMF0Value) IsNull() bool {
+func (v *AMF0Value) IsNull() bool {
 	if v.IsAMF3() {
 		return v.amf3.amf_type == AMF3_TYPE_NULL
 	} else {
@@ -67,7 +67,7 @@ func (v AMF0Value) IsNull() bool {
 	}
 }
 
-func (v AMF0Value) GetBool() bool {
+func (v *AMF0Value) GetBool() bool {
 	if v.IsAMF3() {
 		return v.amf3.GetBool()
 	} else {
@@ -75,7 +75,7 @@ func (v AMF0Value) GetBool() bool {
 	}
 }
 
-func (v AMF0Value) GetInteger() int64 {
+func (v *AMF0Value) GetInteger() int64 {
 	if v.IsAMF3() {
 		return int64(v.amf3.int_val)
 	} else {
@@ -83,7 +83,7 @@ func (v AMF0Value) GetInteger() int64 {
 	}
 }
 
-func (v AMF0Value) GetDouble() float64 {
+func (v *AMF0Value) GetDouble() float64 {
 	if v.IsAMF3() {
 		return v.amf3.float_val
 	} else {
@@ -91,7 +91,7 @@ func (v AMF0Value) GetDouble() float64 {
 	}
 }
 
-func (v AMF0Value) GetString() string {
+func (v *AMF0Value) GetString() string {
 	if v.IsAMF3() {
 		return v.amf3.str_val
 	} else {
@@ -99,7 +99,7 @@ func (v AMF0Value) GetString() string {
 	}
 }
 
-func (v AMF0Value) GetByteArray() []byte {
+func (v *AMF0Value) GetByteArray() []byte {
 	if v.IsAMF3() {
 		return v.amf3.bytes_val
 	} else {
@@ -107,7 +107,7 @@ func (v AMF0Value) GetByteArray() []byte {
 	}
 }
 
-func (v AMF0Value) GetObject() map[string]AMF0Value {
+func (v *AMF0Value) GetObject() map[string]AMF0Value {
 	if v.IsAMF3() {
 		return make(map[string]AMF0Value)
 	} else {
@@ -115,7 +115,7 @@ func (v AMF0Value) GetObject() map[string]AMF0Value {
 	}
 }
 
-func (v AMF0Value) GetArray() []AMF0Value {
+func (v *AMF0Value) GetArray() []AMF0Value {
 	if v.IsAMF3() {
 		return make([]AMF0Value, 0)
 	} else {
@@ -269,26 +269,26 @@ type AMFDecodingStream struct {
 	pos    int
 }
 
-func (s AMFDecodingStream) Read(n int) []byte {
+func (s *AMFDecodingStream) Read(n int) []byte {
 	r := s.buffer[s.pos:(s.pos + n)]
 	s.pos += n
 	return r
 }
 
-func (s AMFDecodingStream) Look(n int) []byte {
+func (s *AMFDecodingStream) Look(n int) []byte {
 	r := s.buffer[s.pos:(s.pos + n)]
 	return r
 }
 
-func (s AMFDecodingStream) Skip(n int) {
+func (s *AMFDecodingStream) Skip(n int) {
 	s.pos += n
 }
 
-func (s AMFDecodingStream) IsEnded() bool {
+func (s *AMFDecodingStream) IsEnded() bool {
 	return s.pos < len(s.buffer)
 }
 
-func (s AMFDecodingStream) ReadOne() AMF0Value {
+func (s *AMFDecodingStream) ReadOne() AMF0Value {
 	amf_type := s.Read(1)[0]
 	r := createAMF0Value(amf_type)
 	switch amf_type {
@@ -322,30 +322,30 @@ func (s AMFDecodingStream) ReadOne() AMF0Value {
 	return r
 }
 
-func (s AMFDecodingStream) ReadNumber() float64 {
+func (s *AMFDecodingStream) ReadNumber() float64 {
 	buf := s.Read(8)
 	a := binary.BigEndian.Uint64(buf)
 	return math.Float64frombits(a)
 }
 
-func (s AMFDecodingStream) ReadBool() bool {
+func (s *AMFDecodingStream) ReadBool() bool {
 	buf := s.Read(1)
 	return buf[0] != 0x00
 }
 
-func (s AMFDecodingStream) ReadString() string {
+func (s *AMFDecodingStream) ReadString() string {
 	l := binary.BigEndian.Uint16(s.Read(2))
 	strBytes := s.Read(int(l))
 	return string(strBytes)
 }
 
-func (s AMFDecodingStream) ReadLongString() string {
+func (s *AMFDecodingStream) ReadLongString() string {
 	l := binary.BigEndian.Uint32(s.Read(4))
 	strBytes := s.Read(int(l))
 	return string(strBytes)
 }
 
-func (s AMFDecodingStream) ReadObject() map[string]AMF0Value {
+func (s *AMFDecodingStream) ReadObject() map[string]AMF0Value {
 	o := make(map[string]AMF0Value)
 
 	for !s.IsEnded() && s.Look(1)[0] != AMF0_OBJECT_TERM_CODE {
@@ -360,7 +360,7 @@ func (s AMFDecodingStream) ReadObject() map[string]AMF0Value {
 	return o
 }
 
-func (s AMFDecodingStream) ReadArray() []AMF0Value {
+func (s *AMFDecodingStream) ReadArray() []AMF0Value {
 	s.Skip(4)
 	o := s.ReadObject()
 	r := make([]AMF0Value, len(o))
@@ -381,7 +381,7 @@ func (s AMFDecodingStream) ReadArray() []AMF0Value {
 	return r
 }
 
-func (s AMFDecodingStream) ReadStrictArray() []AMF0Value {
+func (s *AMFDecodingStream) ReadStrictArray() []AMF0Value {
 	var r []AMF0Value
 	r = make([]AMF0Value, 0)
 
@@ -394,7 +394,7 @@ func (s AMFDecodingStream) ReadStrictArray() []AMF0Value {
 	return r
 }
 
-func (s AMFDecodingStream) ReadTypedObject() (string, map[string]AMF0Value) {
+func (s *AMFDecodingStream) ReadTypedObject() (string, map[string]AMF0Value) {
 	className := s.ReadString()
 	o := s.ReadObject()
 	return className, o
