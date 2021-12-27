@@ -70,3 +70,126 @@ const STREAM_EOF = 0x01
 const STREAM_DRY = 0x02
 const STREAM_EMPTY = 0x1f
 const STREAM_READY = 0x20
+
+var rtmpCmdCode = map[string][]string{
+	"_result":         {"transId", "cmdObj", "info"},
+	"_error":          {"transId", "cmdObj", "info", "streamId"},
+	"onStatus":        {"transId", "cmdObj", "info"},
+	"releaseStream":   {"transId", "cmdObj", "streamName"},
+	"getStreamLength": {"transId", "cmdObj", "streamId"},
+	"getMovLen":       {"transId", "cmdObj", "streamId"},
+	"FCPublish":       {"transId", "cmdObj", "streamName"},
+	"FCUnpublish":     {"transId", "cmdObj", "streamName"},
+	"FCSubscribe":     {"transId", "cmdObj", "streamName"},
+	"onFCPublish":     {"transId", "cmdObj", "info"},
+	"connect":         {"transId", "cmdObj", "args"},
+	"call":            {"transId", "cmdObj", "args"},
+	"createStream":    {"transId", "cmdObj"},
+	"close":           {"transId", "cmdObj"},
+	"play":            {"transId", "cmdObj", "streamName", "start", "duration", "reset"},
+	"play2":           {"transId", "cmdObj", "params"},
+	"deleteStream":    {"transId", "cmdObj", "streamId"},
+	"closeStream":     {"transId", "cmdObj"},
+	"receiveAudio":    {"transId", "cmdObj", "bool"},
+	"receiveVideo":    {"transId", "cmdObj", "bool"},
+	"publish":         {"transId", "cmdObj", "streamName", "type"},
+	"seek":            {"transId", "cmdObj", "ms"},
+	"pause":           {"transId", "cmdObj", "pause", "ms"},
+}
+
+var rtmpDataCode = map[string][]string{
+	"@setDataFrame":     {"method", "dataObj"},
+	"onFI":              {"info"},
+	"onMetaData":        {"dataObj"},
+	"|RtmpSampleAccess": {"bool1", "bool2"},
+}
+
+type RTMPCommand struct {
+	cmd       string
+	arguments map[string]AMF0Value
+}
+
+func (c *RTMPCommand) Encode() []byte {
+	var buf []byte
+
+	x := createAMF0Value(AMF0_TYPE_STRING)
+	x.str_val = c.cmd
+
+	buf = amf0EncodeOne(x)
+
+	argList := rtmpCmdCode[c.cmd]
+
+	for i := 0; i < len(argList); i++ {
+		val := c.arguments[argList[i]]
+		buf = append(buf, amf0EncodeOne(val)...)
+	}
+
+	return buf
+}
+
+func decodeRTMPCommand(data []byte) RTMPCommand {
+	c := RTMPCommand{
+		cmd:       "",
+		arguments: make(map[string]AMF0Value),
+	}
+	s := AMFDecodingStream{
+		buffer: data,
+		pos:    0,
+	}
+
+	c.cmd = s.ReadOne().str_val
+
+	argList := rtmpCmdCode[c.cmd]
+
+	for i := 0; i < len(argList); i++ {
+		val := s.ReadOne()
+		c.arguments[argList[i]] = val
+	}
+
+	return c
+}
+
+type RTMPData struct {
+	tag       string
+	arguments map[string]AMF0Value
+}
+
+func (c *RTMPData) Encode() []byte {
+	var buf []byte
+
+	x := createAMF0Value(AMF0_TYPE_STRING)
+	x.str_val = c.tag
+
+	buf = amf0EncodeOne(x)
+
+	argList := rtmpDataCode[c.tag]
+
+	for i := 0; i < len(argList); i++ {
+		val := c.arguments[argList[i]]
+		buf = append(buf, amf0EncodeOne(val)...)
+	}
+
+	return buf
+}
+
+func decodeRTMPData(data []byte) RTMPData {
+	c := RTMPData{
+		tag:       "",
+		arguments: make(map[string]AMF0Value),
+	}
+	s := AMFDecodingStream{
+		buffer: data,
+		pos:    0,
+	}
+
+	c.tag = s.ReadOne().str_val
+
+	argList := rtmpDataCode[c.tag]
+
+	for i := 0; i < len(argList); i++ {
+		val := s.ReadOne()
+		c.arguments[argList[i]] = val
+	}
+
+	return c
+}
