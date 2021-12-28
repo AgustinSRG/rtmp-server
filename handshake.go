@@ -222,7 +222,7 @@ func generateS0S1S2(clientsig []byte) []byte {
 	var messageFormat uint32
 	var allBytes []byte
 
-	clientType = []byte{3}
+	clientType = []byte{RTMP_VERSION}
 	messageFormat = detectClientMessageFormat(clientsig)
 
 	if messageFormat == MESSAGE_FORMAT_0 {
