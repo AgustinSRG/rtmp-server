@@ -32,8 +32,8 @@ type AMF0Value struct {
 	str_val   string
 	int_val   int64
 	float_val float64
-	obj_val   map[string]AMF0Value
-	array_val []AMF0Value
+	obj_val   map[string]*AMF0Value
+	array_val []*AMF0Value
 	amf3      *AMF3Value
 }
 
@@ -70,8 +70,12 @@ func (v *AMF0Value) IsNull() bool {
 func (v *AMF0Value) GetBool() bool {
 	if v.IsAMF3() {
 		return v.amf3.GetBool()
-	} else {
+	} else if v.amf_type == AMF0_TYPE_BOOL {
 		return v.bool_val
+	} else if v.amf_type == AMF0_TYPE_NUMBER {
+		return v.float_val != 0
+	} else {
+		return false
 	}
 }
 
@@ -107,17 +111,17 @@ func (v *AMF0Value) GetByteArray() []byte {
 	}
 }
 
-func (v *AMF0Value) GetObject() map[string]AMF0Value {
+func (v *AMF0Value) GetObject() map[string]*AMF0Value {
 	if v.IsAMF3() {
-		return make(map[string]AMF0Value)
+		return make(map[string]*AMF0Value)
 	} else {
 		return v.obj_val
 	}
 }
 
-func (v *AMF0Value) GetArray() []AMF0Value {
+func (v *AMF0Value) GetArray() []*AMF0Value {
 	if v.IsAMF3() {
-		return make([]AMF0Value, 0)
+		return make([]*AMF0Value, 0)
 	} else {
 		return v.array_val
 	}
@@ -130,8 +134,8 @@ func createAMF0Value(amf_type byte) AMF0Value {
 		str_val:   "",
 		int_val:   0,
 		float_val: 0,
-		obj_val:   make(map[string]AMF0Value),
-		array_val: make([]AMF0Value, 0),
+		obj_val:   make(map[string]*AMF0Value),
+		array_val: make([]*AMF0Value, 0),
 		amf3:      nil,
 	}
 }
@@ -206,13 +210,13 @@ func amf0EncodeLongString(str string) []byte {
 	return append(l, b...)
 }
 
-func amf0EncodeObject(o map[string]AMF0Value) []byte {
+func amf0EncodeObject(o map[string]*AMF0Value) []byte {
 	var r []byte
 	r = make([]byte, 0)
 
 	for key, element := range o {
 		r = append(r, amf0EncodeString(key)...)
-		r = append(r, amf0EncodeOne(element)...)
+		r = append(r, amf0EncodeOne(*element)...)
 	}
 
 	r = append(r, []byte{AMF0_OBJECT_TERM_CODE}...)
@@ -220,15 +224,15 @@ func amf0EncodeObject(o map[string]AMF0Value) []byte {
 	return r
 }
 
-func amf0EncodeArray(array []AMF0Value) []byte {
+func amf0EncodeArray(array []*AMF0Value) []byte {
 	// Length
 	var r []byte
 	r = make([]byte, 4)
 	binary.BigEndian.PutUint32(r, uint32(len(array)))
 
 	// Values
-	var o map[string]AMF0Value
-	o = make(map[string]AMF0Value)
+	var o map[string]*AMF0Value
+	o = make(map[string]*AMF0Value)
 
 	for i := 0; i < len(array); i++ {
 		o[strconv.Itoa(i)] = array[i]
@@ -237,14 +241,14 @@ func amf0EncodeArray(array []AMF0Value) []byte {
 	return append(r, amf0EncodeObject(o)...)
 }
 
-func amf0EncodeStrictArray(array []AMF0Value) []byte {
+func amf0EncodeStrictArray(array []*AMF0Value) []byte {
 	// Length
 	var r []byte
 	r = make([]byte, 4)
 	binary.BigEndian.PutUint32(r, uint32(len(array)))
 
 	for i := 0; i < len(array); i++ {
-		r = append(r, amf0EncodeOne(array[i])...)
+		r = append(r, amf0EncodeOne(*array[i])...)
 	}
 
 	return r
@@ -256,7 +260,7 @@ func amf0EncodeRef(index uint16) []byte {
 	return l
 }
 
-func amf0EncodeTypedObject(className string, o map[string]AMF0Value) []byte {
+func amf0EncodeTypedObject(className string, o map[string]*AMF0Value) []byte {
 	var r []byte
 	r = amf0EncodeString(className)
 	return append(r, amf0EncodeObject(o)...)
@@ -345,28 +349,29 @@ func (s *AMFDecodingStream) ReadLongString() string {
 	return string(strBytes)
 }
 
-func (s *AMFDecodingStream) ReadObject() map[string]AMF0Value {
-	o := make(map[string]AMF0Value)
+func (s *AMFDecodingStream) ReadObject() map[string]*AMF0Value {
+	o := make(map[string]*AMF0Value)
 
 	for !s.IsEnded() && s.Look(1)[0] != AMF0_OBJECT_TERM_CODE {
 		propName := s.ReadString()
 
 		if s.Look(1)[0] != AMF0_OBJECT_TERM_CODE {
 			propVal := s.ReadOne()
-			o[propName] = propVal
+			o[propName] = &propVal
 		}
 	}
 
 	return o
 }
 
-func (s *AMFDecodingStream) ReadArray() []AMF0Value {
+func (s *AMFDecodingStream) ReadArray() []*AMF0Value {
 	s.Skip(4)
 	o := s.ReadObject()
-	r := make([]AMF0Value, len(o))
+	r := make([]*AMF0Value, len(o))
 
 	for i := 0; i < len(r); i++ {
-		r[i] = createAMF0Value(AMF0_TYPE_UNDEFINED)
+		nv := createAMF0Value(AMF0_TYPE_UNDEFINED)
+		r[i] = &nv
 	}
 
 	for key, value := range o {
@@ -381,20 +386,21 @@ func (s *AMFDecodingStream) ReadArray() []AMF0Value {
 	return r
 }
 
-func (s *AMFDecodingStream) ReadStrictArray() []AMF0Value {
-	var r []AMF0Value
-	r = make([]AMF0Value, 0)
+func (s *AMFDecodingStream) ReadStrictArray() []*AMF0Value {
+	var r []*AMF0Value
+	r = make([]*AMF0Value, 0)
 
 	l := binary.BigEndian.Uint32(s.Read(4))
 
 	for i := uint32(0); i < l && !s.IsEnded(); i++ {
-		r = append(r, s.ReadOne())
+		v := s.ReadOne()
+		r = append(r, &v)
 	}
 
 	return r
 }
 
-func (s *AMFDecodingStream) ReadTypedObject() (string, map[string]AMF0Value) {
+func (s *AMFDecodingStream) ReadTypedObject() (string, map[string]*AMF0Value) {
 	className := s.ReadString()
 	o := s.ReadObject()
 	return className, o

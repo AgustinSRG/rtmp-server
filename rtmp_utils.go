@@ -106,7 +106,7 @@ var rtmpDataCode = map[string][]string{
 
 type RTMPCommand struct {
 	cmd       string
-	arguments map[string]AMF0Value
+	arguments map[string]*AMF0Value
 }
 
 func (c *RTMPCommand) Encode() []byte {
@@ -121,7 +121,7 @@ func (c *RTMPCommand) Encode() []byte {
 
 	for i := 0; i < len(argList); i++ {
 		val := c.arguments[argList[i]]
-		buf = append(buf, amf0EncodeOne(val)...)
+		buf = append(buf, amf0EncodeOne(*val)...)
 	}
 
 	return buf
@@ -130,7 +130,7 @@ func (c *RTMPCommand) Encode() []byte {
 func decodeRTMPCommand(data []byte) RTMPCommand {
 	c := RTMPCommand{
 		cmd:       "",
-		arguments: make(map[string]AMF0Value),
+		arguments: make(map[string]*AMF0Value),
 	}
 	s := AMFDecodingStream{
 		buffer: data,
@@ -143,7 +143,7 @@ func decodeRTMPCommand(data []byte) RTMPCommand {
 
 	for i := 0; i < len(argList); i++ {
 		val := s.ReadOne()
-		c.arguments[argList[i]] = val
+		c.arguments[argList[i]] = &val
 	}
 
 	return c

@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"time"
 )
 
 type RTMPPathStatus struct {
@@ -26,6 +27,7 @@ type RTMPServer struct {
 	sessions        map[uint64]RTMPSession
 	paths           map[string]RTMPPathStatus
 	next_session_id uint64
+	closed          bool
 }
 
 func CreateRTMPServer() *RTMPServer {
@@ -36,6 +38,7 @@ func CreateRTMPServer() *RTMPServer {
 		sessions:        make(map[uint64]RTMPSession),
 		paths:           make(map[string]RTMPPathStatus),
 		next_session_id: 1,
+		closed:          false,
 	}
 
 	bind_addr := os.Getenv("BIND_ADDRESS")
@@ -144,6 +147,23 @@ func (server *RTMPServer) AcceptConnections(listener net.Listener, wg *sync.Wait
 	}
 }
 
+func (server *RTMPServer) SendPings(wg *sync.WaitGroup) {
+	defer wg.Done()
+	for !server.closed {
+		// Wait
+		time.Sleep(RTMP_PING_TIME * time.Millisecond)
+
+		func() {
+			server.mutex.Lock()
+			defer server.mutex.Unlock()
+
+			for _, s := range server.sessions {
+				s.SendPingRequest()
+			}
+		}()
+	}
+}
+
 func (server *RTMPServer) Start() {
 	var wg sync.WaitGroup
 	if server.listener != nil {
@@ -155,6 +175,9 @@ func (server *RTMPServer) Start() {
 		wg.Add(1)
 		go server.AcceptConnections(server.secureListener, &wg)
 	}
+
+	wg.Add(1)
+	go server.SendPings(&wg)
 
 	wg.Wait()
 }

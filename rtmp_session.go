@@ -32,6 +32,21 @@ type RTMPSession struct {
 	inAckSize uint32
 	inLastAck uint32
 
+	objectEncoding uint32
+	connectTime    int64
+
+	receive_audio bool
+	receive_video bool
+
+	channel string
+	key     string
+
+	isConnected  bool
+	isPublishing bool
+	isPlaying    bool
+	isIdling     bool
+	isPause      bool
+
 	bitrate       uint64
 	bitrate_cache BitrateCache
 }
@@ -55,6 +70,20 @@ func CreateRTMPSession(server *RTMPServer, id uint64, ip string, c net.Conn) RTM
 			last_update: 0,
 			bytes:       0,
 		},
+
+		objectEncoding: 0,
+
+		receive_audio: true,
+		receive_video: true,
+
+		isConnected:  false,
+		isPublishing: false,
+		isPlaying:    false,
+		isIdling:     false,
+		isPause:      false,
+
+		channel: "",
+		key:     "",
 	}
 }
 
@@ -191,7 +220,7 @@ func (s *RTMPSession) ReadChunk(r *bufio.Reader) bool {
 	if packet.header.fmt <= RTMP_CHUNK_TYPE_2 {
 		tsBytes := header[offset : offset+3]
 		tsBytes = append(tsBytes, 0x00)
-		packet.header.timestamp = binary.BigEndian.Uint32(tsBytes)
+		packet.header.timestamp = int64(binary.BigEndian.Uint32(tsBytes))
 		offset += 3
 	}
 
@@ -216,7 +245,7 @@ func (s *RTMPSession) ReadChunk(r *bufio.Reader) bool {
 	}
 
 	// Extended typestamp
-	var extended_timestamp uint32
+	var extended_timestamp int64
 	if packet.header.timestamp == 0xffffff {
 		tsBytes := make([]byte, 4)
 		n, e := r.Read(tsBytes)
@@ -224,7 +253,7 @@ func (s *RTMPSession) ReadChunk(r *bufio.Reader) bool {
 		if e != nil || n != 4 {
 			return false
 		}
-		extended_timestamp = binary.BigEndian.Uint32(tsBytes)
+		extended_timestamp = int64(binary.BigEndian.Uint32(tsBytes))
 	} else {
 		extended_timestamp = packet.header.timestamp
 	}
@@ -241,12 +270,12 @@ func (s *RTMPSession) ReadChunk(r *bufio.Reader) bool {
 		}
 	}
 
+	// Payload
 	var sizeToRead uint32
 	sizeToRead = s.inChunkSize - (packet.bytes % s.inChunkSize)
 	if sizeToRead > (packet.header.length - packet.bytes) {
 		sizeToRead = packet.header.length - packet.bytes
 	}
-
 	if sizeToRead > 0 {
 		bytesToRead := make([]byte, sizeToRead)
 		n, e := r.Read(bytesToRead)
@@ -259,7 +288,9 @@ func (s *RTMPSession) ReadChunk(r *bufio.Reader) bool {
 		packet.payload = append(packet.payload, bytesToRead...)
 	}
 
+	// If packet is ready, handle
 	if packet.bytes >= packet.header.length {
+		delete(s.inPackets, packet.header.cid) // Remove from pending packets
 		if packet.clock <= 0xffffffff {
 			if !s.HandlePacket(packet) {
 				return false
@@ -268,7 +299,6 @@ func (s *RTMPSession) ReadChunk(r *bufio.Reader) bool {
 	}
 
 	// ACK
-
 	s.inAckSize += bytesReadCount
 	if s.inAckSize >= 0xf0000000 {
 		s.inAckSize = 0
@@ -282,7 +312,6 @@ func (s *RTMPSession) ReadChunk(r *bufio.Reader) bool {
 	}
 
 	// Bitrate
-
 	now := time.Now().UnixMilli()
 	s.bitrate_cache.bytes += uint64(bytesReadCount)
 	diff := now - s.bitrate_cache.last_update
@@ -297,32 +326,62 @@ func (s *RTMPSession) ReadChunk(r *bufio.Reader) bool {
 
 func (s *RTMPSession) HandlePacket(packet *RTMPPacket) bool {
 	switch packet.header.packet_type {
-	default:
+	case RTMP_TYPE_SET_CHUNK_SIZE:
+		csb := packet.payload[0:4]
+		s.inChunkSize = binary.BigEndian.Uint32(csb)
+	case RTMP_TYPE_WINDOW_ACKNOWLEDGEMENT_SIZE:
+		csb := packet.payload[0:4]
+		s.ackSize = binary.BigEndian.Uint32(csb)
+	case RTMP_TYPE_AUDIO:
+	case RTMP_TYPE_VIDEO:
 		return true
+	case RTMP_TYPE_FLEX_MESSAGE:
+		return s.HandleInvoke(packet)
+	case RTMP_TYPE_INVOKE:
+		return s.HandleInvoke(packet)
 	}
+
+	return true
 }
 
-func (s *RTMPSession) SendACK(size uint32) bool {
-	b := []byte{
-		0x02, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x04, 0x03,
-		0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00,
+func (s *RTMPSession) HandleInvoke(packet *RTMPPacket) bool {
+	var offset uint32
+	if packet.header.packet_type == RTMP_TYPE_FLEX_MESSAGE {
+		offset = 1
+	} else {
+		offset = 0
 	}
 
-	n := make([]byte, 4)
-	binary.BigEndian.PutUint32(n, size)
+	payload := packet.payload[offset:packet.header.length]
 
-	b[12] = n[0]
-	b[13] = n[1]
-	b[14] = n[2]
-	b[15] = n[3]
+	cmd := decodeRTMPCommand(payload)
 
-	nw, err := s.conn.Write(b)
-
-	if err != nil || nw != len(b) {
-		return false
+	switch cmd.cmd {
+	case "connect":
+		return s.HandleConnect(&cmd)
+	case "createStream":
+	case "publish":
+	case "play":
+	case "pause":
+	case "deleteStream":
+	case "closeStream":
+	case "receiveAudio":
+		s.receive_audio = cmd.arguments["bool"].GetBool()
+	case "receiveVideo":
+		s.receive_video = cmd.arguments["bool"].GetBool()
 	}
+
+	return true
+}
+
+func (s *RTMPSession) HandleConnect(cmd *RTMPCommand) bool {
+	s.channel = cmd.arguments["cmdObj"].GetObject()["app"].GetString()
+	s.objectEncoding = uint32(cmd.arguments["cmdObj"].GetObject()["objectEncoding"].GetInteger())
+	s.connectTime = time.Now().UnixMilli()
+	s.bitrate_cache.intervalMs = 1000
+	s.bitrate_cache.last_update = s.connectTime
+	s.bitrate_cache.bytes = 0
+	s.isConnected = true
 
 	return true
 }
