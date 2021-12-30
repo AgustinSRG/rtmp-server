@@ -2,6 +2,12 @@
 
 package main
 
+import (
+	"os"
+	"regexp"
+	"strconv"
+)
+
 /* Constants */
 
 const N_CHUNK_STREAM = 8
@@ -151,7 +157,7 @@ func decodeRTMPCommand(data []byte) RTMPCommand {
 
 type RTMPData struct {
 	tag       string
-	arguments map[string]AMF0Value
+	arguments map[string]*AMF0Value
 }
 
 func (c *RTMPData) Encode() []byte {
@@ -166,7 +172,7 @@ func (c *RTMPData) Encode() []byte {
 
 	for i := 0; i < len(argList); i++ {
 		val := c.arguments[argList[i]]
-		buf = append(buf, amf0EncodeOne(val)...)
+		buf = append(buf, amf0EncodeOne(*val)...)
 	}
 
 	return buf
@@ -175,7 +181,7 @@ func (c *RTMPData) Encode() []byte {
 func decodeRTMPData(data []byte) RTMPData {
 	c := RTMPData{
 		tag:       "",
-		arguments: make(map[string]AMF0Value),
+		arguments: make(map[string]*AMF0Value),
 	}
 	s := AMFDecodingStream{
 		buffer: data,
@@ -188,8 +194,33 @@ func decodeRTMPData(data []byte) RTMPData {
 
 	for i := 0; i < len(argList); i++ {
 		val := s.ReadOne()
-		c.arguments[argList[i]] = val
+		c.arguments[argList[i]] = &val
 	}
 
 	return c
+}
+
+var ID_MAX_LENGTH = 128
+var idCustomMaxLength = os.Getenv("ID_MAX_LENGTH")
+
+func validateStreamIDString(str string) bool {
+	if idCustomMaxLength != "" {
+		var e error
+		ID_MAX_LENGTH, e = strconv.Atoi(idCustomMaxLength)
+		if e != nil {
+			ID_MAX_LENGTH = 128
+		}
+	}
+
+	if len(str) > ID_MAX_LENGTH {
+		return false
+	}
+
+	m, e := regexp.MatchString("^[A-Za-z0-9\\_\\-]+$", str)
+
+	if e != nil {
+		return false
+	}
+
+	return m
 }

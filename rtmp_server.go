@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-type RTMPPathStatus struct {
+type RTMPChannel struct {
 	channel       string
 	key           string
 	stream_id     string
@@ -24,8 +24,8 @@ type RTMPServer struct {
 	listener        net.Listener
 	secureListener  net.Listener
 	mutex           *sync.Mutex
-	sessions        map[uint64]RTMPSession
-	paths           map[string]RTMPPathStatus
+	sessions        map[uint64]*RTMPSession
+	channels        map[string]*RTMPChannel
 	next_session_id uint64
 	closed          bool
 }
@@ -35,8 +35,8 @@ func CreateRTMPServer() *RTMPServer {
 		listener:        nil,
 		secureListener:  nil,
 		mutex:           &sync.Mutex{},
-		sessions:        make(map[uint64]RTMPSession),
-		paths:           make(map[string]RTMPPathStatus),
+		sessions:        make(map[uint64]*RTMPSession),
+		channels:        make(map[string]*RTMPChannel),
 		next_session_id: 1,
 		closed:          false,
 	}
@@ -110,7 +110,7 @@ func (server *RTMPServer) NextSessionID() uint64 {
 	return r
 }
 
-func (server *RTMPServer) AddSession(s RTMPSession) {
+func (server *RTMPServer) AddSession(s *RTMPSession) {
 	server.mutex.Lock()
 	defer server.mutex.Unlock()
 
@@ -122,6 +122,63 @@ func (server *RTMPServer) RemoveSession(id uint64) {
 	defer server.mutex.Unlock()
 
 	delete(server.sessions, id)
+}
+
+func (server *RTMPServer) isPublishing(channel string) bool {
+	server.mutex.Lock()
+	defer server.mutex.Unlock()
+
+	return server.channels[channel] != nil && server.channels[channel].is_publishing
+}
+
+func (server *RTMPServer) SetPublisher(channel string, key string, stream_id string, s *RTMPSession) bool {
+	server.mutex.Lock()
+	defer server.mutex.Unlock()
+
+	if server.channels[channel] != nil && server.channels[channel].is_publishing {
+		return false
+	}
+
+	if server.channels[channel] == nil {
+		c := RTMPChannel{
+			channel:       channel,
+			key:           key,
+			stream_id:     stream_id,
+			is_publishing: true,
+			publisher:     s.id,
+			players:       make(map[uint64]bool),
+		}
+		server.channels[channel] = &c
+	} else {
+		server.channels[channel].key = key
+		server.channels[channel].stream_id = stream_id
+		server.channels[channel].is_publishing = true
+		server.channels[channel].publisher = s.id
+	}
+
+	return true
+}
+
+func (server *RTMPServer) GetIdlePlayers(channel string) []*RTMPSession {
+	server.mutex.Lock()
+	defer server.mutex.Unlock()
+
+	if server.channels[channel] == nil {
+		return make([]*RTMPSession, 0)
+	}
+
+	players := server.channels[channel].players
+
+	playersToStart := make([]*RTMPSession, 0)
+
+	for sid, _ := range players {
+		player := server.sessions[sid]
+		if player != nil && player.isIdling {
+			playersToStart = append(playersToStart, player)
+		}
+	}
+
+	return playersToStart
 }
 
 func (server *RTMPServer) AcceptConnections(listener net.Listener, wg *sync.WaitGroup) {

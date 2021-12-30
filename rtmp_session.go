@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"math"
 	"net"
+	"strings"
 	"sync"
 	"time"
 )
@@ -32,8 +33,10 @@ type RTMPSession struct {
 	inAckSize uint32
 	inLastAck uint32
 
-	objectEncoding uint32
-	connectTime    int64
+	objectEncoding  uint32
+	connectTime     int64
+	playStreamId    uint32
+	publishStreamId uint32
 
 	receive_audio bool
 	receive_video bool
@@ -46,6 +49,8 @@ type RTMPSession struct {
 	isPlaying    bool
 	isIdling     bool
 	isPause      bool
+
+	streams uint32
 
 	bitrate       uint64
 	bitrate_cache BitrateCache
@@ -71,7 +76,10 @@ func CreateRTMPSession(server *RTMPServer, id uint64, ip string, c net.Conn) RTM
 			bytes:       0,
 		},
 
-		objectEncoding: 0,
+		objectEncoding:  0,
+		streams:         0,
+		playStreamId:    0,
+		publishStreamId: 0,
 
 		receive_audio: true,
 		receive_video: true,
@@ -92,6 +100,17 @@ func (s *RTMPSession) SendSync(b []byte) {
 	defer s.mutex.Unlock()
 
 	s.conn.Write(b)
+}
+
+func (s *RTMPSession) Kill() {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	s.conn.Close()
+}
+
+func (s *RTMPSession) GetStreamPath() string {
+	return "/" + s.channel + "/" + s.key
 }
 
 func (s *RTMPSession) HandleSession() {
@@ -360,11 +379,17 @@ func (s *RTMPSession) HandleInvoke(packet *RTMPPacket) bool {
 	case "connect":
 		return s.HandleConnect(&cmd)
 	case "createStream":
+		return s.HandleCreateStream(&cmd)
 	case "publish":
+		return s.HandlePublish(&cmd, packet)
 	case "play":
+		return s.HandlePlay(&cmd)
 	case "pause":
+		return s.HandlePause(&cmd)
 	case "deleteStream":
+		return s.HandleDeleteStream(&cmd)
 	case "closeStream":
+		return s.HandleCloseStream(&cmd)
 	case "receiveAudio":
 		s.receive_audio = cmd.arguments["bool"].GetBool()
 	case "receiveVideo":
@@ -376,6 +401,12 @@ func (s *RTMPSession) HandleInvoke(packet *RTMPPacket) bool {
 
 func (s *RTMPSession) HandleConnect(cmd *RTMPCommand) bool {
 	s.channel = cmd.arguments["cmdObj"].GetObject()["app"].GetString()
+
+	// Validate channel
+	if validateStreamIDString(s.channel) {
+		return false
+	}
+
 	s.objectEncoding = uint32(cmd.arguments["cmdObj"].GetObject()["objectEncoding"].GetInteger())
 	s.connectTime = time.Now().UnixMilli()
 	s.bitrate_cache.intervalMs = 1000
@@ -383,7 +414,89 @@ func (s *RTMPSession) HandleConnect(cmd *RTMPCommand) bool {
 	s.bitrate_cache.bytes = 0
 	s.isConnected = true
 
+	transId := cmd.arguments["transId"].GetInteger()
+
+	s.SendWindowACK(5000000)
+	s.SetPeerBandwidth(5000000, 2)
+	s.SetChunkSize(RTMP_CHUNK_SIZE)
+	s.RespondConnect(transId)
+
 	return true
+}
+
+func (s *RTMPSession) HandleCreateStream(cmd *RTMPCommand) bool {
+	transId := cmd.arguments["transId"].GetInteger()
+	s.RespondCreateStream(transId)
+
+	return true
+}
+
+func (s *RTMPSession) HandlePublish(cmd *RTMPCommand, packet *RTMPPacket) bool {
+	sKeyPath := cmd.arguments["streamName"].GetString()
+	sKeyPathSplit := strings.Split(sKeyPath, "?")
+	s.key = sKeyPathSplit[0]
+
+	if s.key == "" || !s.isConnected {
+		return true
+	}
+
+	// Validate key
+	if !validateStreamIDString(s.key) {
+		return false
+	}
+
+	s.publishStreamId = packet.header.stream_id
+
+	if s.isPublishing {
+		s.SendStatusMessage(s.publishStreamId, "error", "NetStream.Publish.BadConnection", "Connection already publishing")
+		return true
+	}
+
+	if s.server.isPublishing(s.channel) {
+		s.SendStatusMessage(s.publishStreamId, "error", "NetStream.Publish.BadName", "Stream already publishing")
+		return false
+	}
+
+	// Callback (TODO)
+	stream_id := ""
+
+	// Set publisher
+	s.isPublishing = true
+	s.server.SetPublisher(s.channel, s.key, stream_id, s)
+
+	s.SendStatusMessage(s.publishStreamId, "status", "NetStream.Publish.Start", s.GetStreamPath()+" is now published.")
+
+	// Start idle players
+	idlePlayers := s.server.GetIdlePlayers(s.channel)
+
+	for i := 0; i < len(idlePlayers); i++ {
+		idlePlayers[i].OnStartPlay()
+	}
+
+	return true
+}
+
+func (s *RTMPSession) HandlePlay(cmd *RTMPCommand) bool {
+
+	return true
+}
+
+func (s *RTMPSession) HandlePause(cmd *RTMPCommand) bool {
+
+	return true
+}
+
+func (s *RTMPSession) HandleDeleteStream(cmd *RTMPCommand) bool {
+
+	return true
+}
+
+func (s *RTMPSession) HandleCloseStream(cmd *RTMPCommand) bool {
+
+	return true
+}
+
+func (s *RTMPSession) OnStartPlay() {
 }
 
 func (s *RTMPSession) OnClose() {

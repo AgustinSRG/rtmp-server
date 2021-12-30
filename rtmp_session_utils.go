@@ -176,3 +176,94 @@ func (s *RTMPSession) SendStatusMessage(stream_id uint32, level string, code str
 
 	s.SendInvokeMessage(stream_id, cmd)
 }
+
+func (s *RTMPSession) SendSampleAccess(stream_id uint32) {
+	cmd := RTMPData{
+		tag:       "|RtmpSampleAccess",
+		arguments: make(map[string]*AMF0Value),
+	}
+
+	bool1 := createAMF0Value(AMF0_TYPE_BOOL)
+	bool1.bool_val = false
+	cmd.arguments["bool1"] = &bool1
+
+	bool2 := createAMF0Value(AMF0_TYPE_BOOL)
+	bool2.bool_val = false
+	cmd.arguments["bool2"] = &bool2
+
+	s.SendDataMessage(stream_id, cmd)
+}
+
+func (s *RTMPSession) RespondConnect(tid int64) {
+	cmd := RTMPCommand{
+		cmd:       "_result",
+		arguments: make(map[string]*AMF0Value),
+	}
+
+	transId := createAMF0Value(AMF0_TYPE_NUMBER)
+	transId.SetIntegerVal(tid)
+	cmd.arguments["transId"] = &transId
+
+	cmdObj := createAMF0Value(AMF0_TYPE_OBJECT)
+
+	fmsVer := createAMF0Value(AMF0_TYPE_STRING)
+	fmsVer.str_val = "FMS/3,0,1,123"
+	cmdObj.obj_val["fmsVer"] = &fmsVer
+
+	capabilities := createAMF0Value(AMF0_TYPE_NUMBER)
+	capabilities.SetIntegerVal(31)
+	cmdObj.obj_val["capabilities"] = &capabilities
+
+	cmd.arguments["cmdObj"] = &cmdObj
+
+	info := createAMF0Value(AMF0_TYPE_OBJECT)
+
+	info_level := createAMF0Value(AMF0_TYPE_STRING)
+	info_level.str_val = "status"
+	info.obj_val["level"] = &info_level
+
+	info_code := createAMF0Value(AMF0_TYPE_STRING)
+	info_code.str_val = "NetConnection.Connect.Success"
+	info.obj_val["code"] = &info_code
+
+	info_description := createAMF0Value(AMF0_TYPE_STRING)
+	info_description.str_val = "Connection succeeded."
+	info.obj_val["description"] = &info_description
+
+	objectEncoding := createAMF0Value(AMF0_TYPE_NUMBER)
+	objectEncoding.SetIntegerVal(int64(s.objectEncoding))
+	info.obj_val["objectEncoding"] = &objectEncoding
+
+	cmd.arguments["info"] = &info
+
+	s.SendInvokeMessage(0, cmd)
+}
+
+func (s *RTMPSession) RespondCreateStream(tid int64) {
+	cmd := RTMPCommand{
+		cmd:       "_result",
+		arguments: make(map[string]*AMF0Value),
+	}
+
+	transId := createAMF0Value(AMF0_TYPE_NUMBER)
+	transId.SetIntegerVal(tid)
+	cmd.arguments["transId"] = &transId
+
+	cmdObj := createAMF0Value(AMF0_TYPE_NULL)
+	cmd.arguments["cmdObj"] = &cmdObj
+
+	s.streams++
+
+	info := createAMF0Value(AMF0_TYPE_NUMBER)
+	info.SetIntegerVal(int64(s.streams))
+	cmd.arguments["info"] = &info
+
+	s.SendInvokeMessage(0, cmd)
+}
+
+func (s *RTMPSession) RespondPlay() {
+	s.SendStreamStatus(STREAM_BEGIN, s.playStreamId)
+	s.SendStatusMessage(s.playStreamId, "status", "NetStream.Play.Reset", "Playing and resetting stream.")
+	s.SendStatusMessage(s.playStreamId, "status", "NetStream.Play.Start", "Started playing stream.")
+	s.SendSampleAccess(0)
+}
