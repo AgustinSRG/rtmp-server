@@ -41,8 +41,9 @@ type RTMPSession struct {
 	receive_audio bool
 	receive_video bool
 
-	channel string
-	key     string
+	channel   string
+	key       string
+	stream_id string
 
 	isConnected  bool
 	isPublishing bool
@@ -90,8 +91,9 @@ func CreateRTMPSession(server *RTMPServer, id uint64, ip string, c net.Conn) RTM
 		isIdling:     false,
 		isPause:      false,
 
-		channel: "",
-		key:     "",
+		channel:   "",
+		key:       "",
+		stream_id: "",
 	}
 }
 
@@ -442,6 +444,7 @@ func (s *RTMPSession) HandlePublish(cmd *RTMPCommand, packet *RTMPPacket) bool {
 
 	// Validate key
 	if !validateStreamIDString(s.key) {
+		s.SendStatusMessage(s.publishStreamId, "error", "NetStream.Publish.BadName", "Invalid stream key provided")
 		return false
 	}
 
@@ -457,12 +460,15 @@ func (s *RTMPSession) HandlePublish(cmd *RTMPCommand, packet *RTMPPacket) bool {
 		return false
 	}
 
-	// Callback (TODO)
-	stream_id := ""
+	// Callback
+	if !s.SendStartCallback() {
+		s.SendStatusMessage(s.publishStreamId, "error", "NetStream.Publish.BadName", "Invalid stream key provided")
+		return false
+	}
 
 	// Set publisher
 	s.isPublishing = true
-	s.server.SetPublisher(s.channel, s.key, stream_id, s)
+	s.server.SetPublisher(s.channel, s.key, s.stream_id, s)
 
 	s.SendStatusMessage(s.publishStreamId, "status", "NetStream.Publish.Start", s.GetStreamPath()+" is now published.")
 
