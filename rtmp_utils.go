@@ -77,6 +77,8 @@ const STREAM_DRY = 0x02
 const STREAM_EMPTY = 0x1f
 const STREAM_READY = 0x20
 
+const RTMP_GOP_CACHE_SIZE = 100
+
 var rtmpCmdCode = map[string][]string{
 	"_result":         {"transId", "cmdObj", "info"},
 	"_error":          {"transId", "cmdObj", "info", "streamId"},

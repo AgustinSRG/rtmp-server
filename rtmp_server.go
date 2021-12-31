@@ -3,7 +3,9 @@
 package main
 
 import (
+	"crypto/subtle"
 	"crypto/tls"
+	"errors"
 	"net"
 	"os"
 	"strconv"
@@ -131,6 +133,22 @@ func (server *RTMPServer) isPublishing(channel string) bool {
 	return server.channels[channel] != nil && server.channels[channel].is_publishing
 }
 
+func (server *RTMPServer) GetPublisher(channel string) *RTMPSession {
+	server.mutex.Lock()
+	defer server.mutex.Unlock()
+
+	if server.channels[channel] != nil {
+		return nil
+	}
+
+	if !server.channels[channel].is_publishing {
+		return nil
+	}
+
+	id := server.channels[channel].publisher
+	return server.sessions[id]
+}
+
 func (server *RTMPServer) SetPublisher(channel string, key string, stream_id string, s *RTMPSession) bool {
 	server.mutex.Lock()
 	defer server.mutex.Unlock()
@@ -159,6 +177,32 @@ func (server *RTMPServer) SetPublisher(channel string, key string, stream_id str
 	return true
 }
 
+func (server *RTMPServer) RemovePublisher(channel string) {
+	server.mutex.Lock()
+	defer server.mutex.Unlock()
+
+	if server.channels[channel] != nil {
+		return
+	}
+
+	server.channels[channel].publisher = 0
+	server.channels[channel].is_publishing = false
+
+	players := server.channels[channel].players
+
+	for sid := range players {
+		player := server.sessions[sid]
+		if player != nil {
+			player.isIdling = true
+			player.isPlaying = false
+		}
+	}
+
+	if !server.channels[channel].is_publishing && len(server.channels[channel].players) == 0 {
+		delete(server.channels, channel)
+	}
+}
+
 func (server *RTMPServer) GetIdlePlayers(channel string) []*RTMPSession {
 	server.mutex.Lock()
 	defer server.mutex.Unlock()
@@ -171,7 +215,7 @@ func (server *RTMPServer) GetIdlePlayers(channel string) []*RTMPSession {
 
 	playersToStart := make([]*RTMPSession, 0)
 
-	for sid, _ := range players {
+	for sid := range players {
 		player := server.sessions[sid]
 		if player != nil && player.isIdling {
 			playersToStart = append(playersToStart, player)
@@ -179,6 +223,74 @@ func (server *RTMPServer) GetIdlePlayers(channel string) []*RTMPSession {
 	}
 
 	return playersToStart
+}
+
+func (server *RTMPServer) GetPlayers(channel string) []*RTMPSession {
+	server.mutex.Lock()
+	defer server.mutex.Unlock()
+
+	if server.channels[channel] == nil {
+		return make([]*RTMPSession, 0)
+	}
+
+	players := server.channels[channel].players
+
+	playersToStart := make([]*RTMPSession, 0)
+
+	for sid := range players {
+		player := server.sessions[sid]
+		if player != nil && player.isPlaying {
+			playersToStart = append(playersToStart, player)
+		}
+	}
+
+	return playersToStart
+}
+
+func (server *RTMPServer) AddPlayer(channel string, key string, s *RTMPSession) (bool, error) {
+	server.mutex.Lock()
+	defer server.mutex.Unlock()
+
+	if server.channels[channel] == nil {
+		c := RTMPChannel{
+			channel:       channel,
+			key:           key,
+			stream_id:     "",
+			is_publishing: false,
+			publisher:     0,
+			players:       make(map[uint64]bool),
+		}
+		server.channels[channel] = &c
+	}
+
+	if server.channels[channel].is_publishing {
+		if subtle.ConstantTimeCompare([]byte(key), []byte(server.channels[channel].key)) == 1 {
+			s.isIdling = false
+		} else {
+			return false, errors.New("Invalid key")
+		}
+	} else {
+		s.isIdling = true
+	}
+
+	server.channels[channel].players[s.id] = true
+
+	return s.isIdling, nil
+}
+
+func (server *RTMPServer) RemovePlayer(channel string, key string, s *RTMPSession) {
+	if server.channels[channel] == nil {
+		return
+	}
+
+	delete(server.channels[channel].players, s.id)
+
+	s.isIdling = false
+	s.isPlaying = false
+
+	if !server.channels[channel].is_publishing && len(server.channels[channel].players) == 0 {
+		delete(server.channels, channel)
+	}
 }
 
 func (server *RTMPServer) AcceptConnections(listener net.Listener, wg *sync.WaitGroup) {

@@ -267,3 +267,74 @@ func (s *RTMPSession) RespondPlay() {
 	s.SendStatusMessage(s.playStreamId, "status", "NetStream.Play.Start", "Started playing stream.")
 	s.SendSampleAccess(0)
 }
+
+func (s *RTMPSession) SendMetadata(metaData []byte, timestamp int64) {
+	if len(metaData) == 0 {
+		return
+	}
+
+	packet := createBlankRTMPPacket()
+
+	packet.header.fmt = RTMP_CHUNK_TYPE_0
+	packet.header.cid = RTMP_CHANNEL_DATA
+	packet.header.packet_type = RTMP_TYPE_DATA
+	packet.payload = metaData
+	packet.header.length = uint32(len(packet.payload))
+	packet.header.stream_id = s.playStreamId
+	packet.header.timestamp = timestamp
+
+	chunks := packet.CreateChunks()
+
+	s.SendSync(chunks)
+}
+
+func (s *RTMPSession) SendAudioCodecHeader(audioCodec uint32, aacSequenceHeader []byte, timestamp int64) {
+	if audioCodec != 10 && audioCodec != 13 {
+		return
+	}
+
+	packet := createBlankRTMPPacket()
+
+	packet.header.fmt = RTMP_CHUNK_TYPE_0
+	packet.header.cid = RTMP_CHANNEL_AUDIO
+	packet.header.packet_type = RTMP_TYPE_AUDIO
+	packet.payload = aacSequenceHeader
+	packet.header.length = uint32(len(packet.payload))
+	packet.header.stream_id = s.playStreamId
+	packet.header.timestamp = timestamp
+
+	chunks := packet.CreateChunks()
+
+	s.SendSync(chunks)
+}
+
+func (s *RTMPSession) SendVideoCodecHeader(videoCodec uint32, avcSequenceHeader []byte, timestamp int64) {
+	if videoCodec != 7 && videoCodec != 12 {
+		return
+	}
+
+	packet := createBlankRTMPPacket()
+
+	packet.header.fmt = RTMP_CHUNK_TYPE_0
+	packet.header.cid = RTMP_CHANNEL_VIDEO
+	packet.header.packet_type = RTMP_TYPE_VIDEO
+	packet.payload = avcSequenceHeader
+	packet.header.length = uint32(len(packet.payload))
+	packet.header.stream_id = s.playStreamId
+	packet.header.timestamp = timestamp
+
+	chunks := packet.CreateChunks()
+
+	s.SendSync(chunks)
+}
+
+func (s *RTMPSession) BuildMetadata(data *RTMPData) []byte {
+	cmd := RTMPData{
+		tag:       "onMetaData",
+		arguments: make(map[string]*AMF0Value),
+	}
+
+	cmd.arguments["dataObj"] = data.arguments["dataObj"]
+
+	return cmd.Encode()
+}

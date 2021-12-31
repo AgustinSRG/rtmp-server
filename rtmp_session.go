@@ -4,6 +4,7 @@ package main
 
 import (
 	"bufio"
+	"container/list"
 	"encoding/binary"
 	"math"
 	"net"
@@ -19,10 +20,11 @@ type BitrateCache struct {
 }
 
 type RTMPSession struct {
-	server *RTMPServer
-	conn   net.Conn
-	ip     string
-	mutex  *sync.Mutex
+	server        *RTMPServer
+	conn          net.Conn
+	ip            string
+	mutex         *sync.Mutex
+	publish_mutex *sync.Mutex
 
 	id          uint64
 	inChunkSize uint32
@@ -51,6 +53,15 @@ type RTMPSession struct {
 	isIdling     bool
 	isPause      bool
 
+	metaData          []byte
+	audioCodec        uint32
+	videoCodec        uint32
+	aacSequenceHeader []byte
+	avcSequenceHeader []byte
+	clock             int64
+
+	rtmpGopcache *list.List
+
 	streams uint32
 
 	bitrate       uint64
@@ -59,16 +70,17 @@ type RTMPSession struct {
 
 func CreateRTMPSession(server *RTMPServer, id uint64, ip string, c net.Conn) RTMPSession {
 	return RTMPSession{
-		server:      server,
-		conn:        c,
-		ip:          ip,
-		mutex:       &sync.Mutex{},
-		id:          id,
-		inChunkSize: RTMP_CHUNK_SIZE,
-		inPackets:   make(map[uint32]*RTMPPacket),
-		ackSize:     0,
-		inAckSize:   0,
-		inLastAck:   0,
+		server:        server,
+		conn:          c,
+		ip:            ip,
+		mutex:         &sync.Mutex{},
+		publish_mutex: &sync.Mutex{},
+		id:            id,
+		inChunkSize:   RTMP_CHUNK_SIZE,
+		inPackets:     make(map[uint32]*RTMPPacket),
+		ackSize:       0,
+		inAckSize:     0,
+		inLastAck:     0,
 
 		bitrate: 0,
 		bitrate_cache: BitrateCache{
@@ -90,6 +102,15 @@ func CreateRTMPSession(server *RTMPServer, id uint64, ip string, c net.Conn) RTM
 		isPlaying:    false,
 		isIdling:     false,
 		isPause:      false,
+
+		metaData:          make([]byte, 0),
+		audioCodec:        0,
+		videoCodec:        0,
+		aacSequenceHeader: make([]byte, 0),
+		avcSequenceHeader: make([]byte, 0),
+		clock:             0,
+
+		rtmpGopcache: list.New(),
 
 		channel:   "",
 		key:       "",
@@ -286,6 +307,8 @@ func (s *RTMPSession) ReadChunk(r *bufio.Reader) bool {
 			packet.clock += extended_timestamp
 		}
 
+		s.SetClock(packet.clock)
+
 		if packet.capacity < packet.header.length {
 			packet.capacity = 1024 + packet.header.length
 		}
@@ -354,12 +377,17 @@ func (s *RTMPSession) HandlePacket(packet *RTMPPacket) bool {
 		csb := packet.payload[0:4]
 		s.ackSize = binary.BigEndian.Uint32(csb)
 	case RTMP_TYPE_AUDIO:
+		return s.HandleAudioPacket(packet)
 	case RTMP_TYPE_VIDEO:
-		return true
+		return s.HandleVideoPacket(packet)
 	case RTMP_TYPE_FLEX_MESSAGE:
 		return s.HandleInvoke(packet)
 	case RTMP_TYPE_INVOKE:
 		return s.HandleInvoke(packet)
+	case RTMP_TYPE_DATA:
+		return s.HandleDataPacketAMF0(packet)
+	case RTMP_TYPE_FLEX_STREAM:
+		return s.HandleDataPacketAMF3(packet)
 	}
 
 	return true
@@ -385,13 +413,13 @@ func (s *RTMPSession) HandleInvoke(packet *RTMPPacket) bool {
 	case "publish":
 		return s.HandlePublish(&cmd, packet)
 	case "play":
-		return s.HandlePlay(&cmd)
+		return s.HandlePlay(&cmd, packet)
 	case "pause":
 		return s.HandlePause(&cmd)
 	case "deleteStream":
 		return s.HandleDeleteStream(&cmd)
 	case "closeStream":
-		return s.HandleCloseStream(&cmd)
+		return s.HandleCloseStream(&cmd, packet)
 	case "receiveAudio":
 		s.receive_audio = cmd.arguments["bool"].GetBool()
 	case "receiveVideo":
@@ -460,6 +488,8 @@ func (s *RTMPSession) HandlePublish(cmd *RTMPCommand, packet *RTMPPacket) bool {
 		return false
 	}
 
+	// Callback limit (TODO)
+
 	// Callback
 	if !s.SendStartCallback() {
 		s.SendStatusMessage(s.publishStreamId, "error", "NetStream.Publish.BadName", "Invalid stream key provided")
@@ -472,38 +502,167 @@ func (s *RTMPSession) HandlePublish(cmd *RTMPCommand, packet *RTMPPacket) bool {
 
 	s.SendStatusMessage(s.publishStreamId, "status", "NetStream.Publish.Start", s.GetStreamPath()+" is now published.")
 
-	// Start idle players
-	idlePlayers := s.server.GetIdlePlayers(s.channel)
+	s.StartIdlePlayers()
 
-	for i := 0; i < len(idlePlayers); i++ {
-		idlePlayers[i].OnStartPlay()
+	return true
+}
+
+func (s *RTMPSession) HandlePlay(cmd *RTMPCommand, packet *RTMPPacket) bool {
+	sKeyPath := cmd.arguments["streamName"].GetString()
+	sKeyPathSplit := strings.Split(sKeyPath, "?")
+	s.key = sKeyPathSplit[0]
+
+	if s.key == "" || !s.isConnected {
+		return true
+	}
+
+	s.playStreamId = packet.header.stream_id
+
+	if s.isIdling || s.isPlaying {
+		s.SendStatusMessage(s.playStreamId, "error", "NetStream.Play.BadConnection", "Connection already playing")
+		return true
+	}
+
+	// TODO: Play whitelist
+
+	s.RespondPlay()
+
+	// Add player
+	idle, e := s.server.AddPlayer(s.channel, s.key, s)
+
+	if e != nil {
+		s.SendStatusMessage(s.playStreamId, "error", "NetStream.Play.BadName", "Invalid stream key provided")
+		return false // Invalid key
+	}
+
+	if !idle {
+		publisher := s.server.GetPublisher(s.channel)
+		if publisher != nil {
+			publisher.StartPlayer(s)
+		}
 	}
 
 	return true
 }
 
-func (s *RTMPSession) HandlePlay(cmd *RTMPCommand) bool {
-
-	return true
-}
-
 func (s *RTMPSession) HandlePause(cmd *RTMPCommand) bool {
+	if !s.isPlaying {
+		return true
+	}
+
+	s.isPause = cmd.arguments["pause"].GetBool()
+
+	if s.isPause {
+		s.SendStreamStatus(STREAM_EOF, s.playStreamId)
+		s.SendStatusMessage(s.playStreamId, "status", "NetStream.Pause.Notify", "Paused live")
+	} else {
+		s.SendStreamStatus(STREAM_BEGIN, s.playStreamId)
+		publisher := s.server.GetPublisher(s.channel)
+
+		if publisher != nil {
+			publisher.ResumePlayer(s)
+		}
+
+		s.SendStatusMessage(s.playStreamId, "status", "NetStream.Unpause.Notify", "Unpaused live")
+	}
 
 	return true
 }
 
 func (s *RTMPSession) HandleDeleteStream(cmd *RTMPCommand) bool {
+	streamId := uint32(cmd.arguments["streamId"].GetInteger())
+
+	if streamId == s.playStreamId {
+		// Close play
+
+		s.server.RemovePlayer(s.channel, s.key, s)
+
+		s.SendStatusMessage(s.playStreamId, "status", "NetStream.Play.Stop", "Stopped playing stream.")
+
+		s.playStreamId = 0
+		s.isPlaying = false
+		s.isIdling = false
+	}
+
+	if streamId == s.publishStreamId {
+		// Close publish
+
+		if s.isPublishing {
+			s.EndPublish(false)
+		}
+
+		s.publishStreamId = 0
+	}
 
 	return true
 }
 
-func (s *RTMPSession) HandleCloseStream(cmd *RTMPCommand) bool {
+func (s *RTMPSession) DeleteStream(streamId uint32) {
 
-	return true
+	if streamId == s.playStreamId {
+		// Close play
+
+		s.server.RemovePlayer(s.channel, s.key, s)
+
+		s.playStreamId = 0
+		s.isPlaying = false
+		s.isIdling = false
+	}
+
+	if streamId == s.publishStreamId {
+		// Close publish
+
+		if s.isPublishing {
+			s.EndPublish(true)
+		}
+
+		s.publishStreamId = 0
+	}
 }
 
-func (s *RTMPSession) OnStartPlay() {
+func (s *RTMPSession) HandleCloseStream(cmd *RTMPCommand, packet *RTMPPacket) bool {
+	streamId := createAMF0Value(AMF0_TYPE_NUMBER)
+	streamId.SetIntegerVal(int64(packet.header.stream_id))
+	cmd.arguments["streamId"] = &streamId
+	return s.HandleDeleteStream(cmd)
 }
 
 func (s *RTMPSession) OnClose() {
+	if s.playStreamId > 0 {
+		s.DeleteStream(s.playStreamId)
+	}
+
+	if s.publishStreamId > 0 {
+		s.DeleteStream(s.publishStreamId)
+	}
+
+	s.isConnected = false
+}
+
+func (s *RTMPSession) HandleAudioPacket(packet *RTMPPacket) bool {
+	return true
+}
+
+func (s *RTMPSession) HandleVideoPacket(packet *RTMPPacket) bool {
+	return true
+}
+
+func (s *RTMPSession) HandleDataPacketAMF0(packet *RTMPPacket) bool {
+	data := decodeRTMPData(packet.payload)
+	return s.HandleRTMPData(packet, &data)
+}
+
+func (s *RTMPSession) HandleDataPacketAMF3(packet *RTMPPacket) bool {
+	data := decodeRTMPData(packet.payload[1:])
+	return s.HandleRTMPData(packet, &data)
+}
+
+func (s *RTMPSession) HandleRTMPData(packet *RTMPPacket, data *RTMPData) bool {
+	switch data.tag {
+	case "@setDataFrame":
+		metaData := s.BuildMetadata(data)
+		s.SetMetaData(metaData)
+	}
+
+	return true
 }
