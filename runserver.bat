@@ -1,0 +1,6 @@
+@ECHO OFF
+
+SET LOG_DEBUG=YES
+
+CALL rtmp-server.exe
+PAUSE

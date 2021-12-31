@@ -338,3 +338,19 @@ func (s *RTMPSession) BuildMetadata(data *RTMPData) []byte {
 
 	return cmd.Encode()
 }
+
+func (s *RTMPSession) SendCachePacket(cache *RTMPPacket) {
+	packet := createBlankRTMPPacket()
+
+	packet.header.fmt = cache.header.fmt
+	packet.header.cid = cache.header.cid
+	packet.header.packet_type = cache.header.packet_type
+	packet.payload = cache.payload
+	packet.header.length = uint32(len(packet.payload))
+	packet.header.stream_id = s.playStreamId
+	packet.header.timestamp = cache.header.timestamp
+
+	chunks := packet.CreateChunks()
+
+	s.SendSync(chunks)
+}

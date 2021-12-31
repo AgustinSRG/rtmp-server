@@ -6,8 +6,10 @@ import (
 	"bufio"
 	"container/list"
 	"encoding/binary"
+	"io"
 	"math"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -157,7 +159,7 @@ func (s *RTMPSession) HandleSession() {
 	}
 
 	handshakeBytes := make([]byte, RTMP_HANDSHAKE_SIZE)
-	n, e := r.Read(handshakeBytes)
+	n, e := io.ReadFull(r, handshakeBytes)
 	if e != nil || n != RTMP_HANDSHAKE_SIZE {
 		LogDebugSession(s.id, s.ip, "Invalid handshake received")
 		return
@@ -165,13 +167,13 @@ func (s *RTMPSession) HandleSession() {
 
 	s0s1s2 := generateS0S1S2(handshakeBytes)
 	n, e = s.conn.Write(s0s1s2)
-	if e != nil || n != RTMP_HANDSHAKE_SIZE {
+	if e != nil || n != len(s0s1s2) {
 		LogDebugSession(s.id, s.ip, "Could not send handshake message")
 		return
 	}
 
 	s1Copy := make([]byte, RTMP_HANDSHAKE_SIZE)
-	n, e = r.Read(s1Copy)
+	n, e = io.ReadFull(r, s1Copy)
 	if e != nil || n != RTMP_HANDSHAKE_SIZE {
 		LogDebugSession(s.id, s.ip, "Invalid hanshake response received")
 		return
@@ -193,6 +195,7 @@ func (s *RTMPSession) ReadChunk(r *bufio.Reader) bool {
 	startByte, e := r.ReadByte()
 	bytesReadCount++
 	if e != nil {
+		LogDebugSession(s.id, s.ip, "Could not read chunk start byte")
 		return false
 	}
 
@@ -212,6 +215,7 @@ func (s *RTMPSession) ReadChunk(r *bufio.Reader) bool {
 		b, e := r.ReadByte()
 		bytesReadCount++
 		if e != nil {
+			LogDebugSession(s.id, s.ip, "Could not read chunk basic bytes")
 			return false
 		}
 
@@ -222,9 +226,10 @@ func (s *RTMPSession) ReadChunk(r *bufio.Reader) bool {
 	size := int(rtmpHeaderSize[header[0]>>6])
 	if size > 0 {
 		headerLeft := make([]byte, size)
-		n, e := r.Read(headerLeft)
+		n, e := io.ReadFull(r, headerLeft)
 		bytesReadCount += uint32(size)
 		if e != nil || n != size {
+			LogDebugSession(s.id, s.ip, "Could not read chunk header")
 			return false
 		}
 		header = append(header, headerLeft...)
@@ -245,8 +250,8 @@ func (s *RTMPSession) ReadChunk(r *bufio.Reader) bool {
 
 	var packet *RTMPPacket
 
-	if val, ok := s.inPackets[cid]; ok {
-		packet = val
+	if s.inPackets[cid] != nil {
+		packet = s.inPackets[cid]
 	} else {
 		bp := createBlankRTMPPacket()
 		packet = &bp
@@ -260,25 +265,24 @@ func (s *RTMPSession) ReadChunk(r *bufio.Reader) bool {
 
 	// timestamp / delta
 	if packet.header.fmt <= RTMP_CHUNK_TYPE_2 {
-		tsBytes := header[offset : offset+3]
-		tsBytes = append(tsBytes, 0x00)
-		packet.header.timestamp = int64(binary.BigEndian.Uint32(tsBytes))
+		tsBytes := make([]byte, 3)
+		copy(tsBytes, header[offset:offset+3])
+		packet.header.timestamp = int64((uint32(tsBytes[2])) | (uint32(tsBytes[1]) << 8) | (uint32(tsBytes[0]) << 16))
 		offset += 3
 	}
 
 	// message length + type
 	if packet.header.fmt <= RTMP_CHUNK_TYPE_1 {
-		tsBytes := header[offset : offset+3]
-		tsBytes = append(tsBytes, 0x00)
-		packet.header.length = binary.BigEndian.Uint32(tsBytes)
+		tsBytes := make([]byte, 3)
+		copy(tsBytes, header[offset:offset+3])
+		packet.header.length = (uint32(tsBytes[2])) | (uint32(tsBytes[1]) << 8) | (uint32(tsBytes[0]) << 16)
 		packet.header.packet_type = uint32(header[offset+3])
 		offset += 4
 	}
 
 	// Stream ID
 	if packet.header.fmt <= RTMP_CHUNK_TYPE_0 {
-		tsBytes := header[offset : offset+4]
-		packet.header.stream_id = binary.LittleEndian.Uint32(tsBytes)
+		packet.header.stream_id = binary.LittleEndian.Uint32(header[offset : offset+4])
 		offset += 4
 	}
 
@@ -290,9 +294,10 @@ func (s *RTMPSession) ReadChunk(r *bufio.Reader) bool {
 	var extended_timestamp int64
 	if packet.header.timestamp == 0xffffff {
 		tsBytes := make([]byte, 4)
-		n, e := r.Read(tsBytes)
+		n, e := io.ReadFull(r, tsBytes)
 		bytesReadCount += 4
 		if e != nil || n != 4 {
+			LogDebugSession(s.id, s.ip, "Could not read extended timestamp")
 			return false
 		}
 		extended_timestamp = int64(binary.BigEndian.Uint32(tsBytes))
@@ -321,10 +326,15 @@ func (s *RTMPSession) ReadChunk(r *bufio.Reader) bool {
 		sizeToRead = packet.header.length - packet.bytes
 	}
 	if sizeToRead > 0 {
+		LogDebugSession(s.id, s.ip, "Reading chunk with size: "+strconv.Itoa(int(sizeToRead))+" of total length = "+strconv.Itoa(int(packet.header.length)))
 		bytesToRead := make([]byte, sizeToRead)
-		n, e := r.Read(bytesToRead)
+		n, e := io.ReadFull(r, bytesToRead)
 		bytesReadCount += sizeToRead
 		if e != nil || uint32(n) != sizeToRead {
+			if e != nil {
+				LogDebugSession(s.id, s.ip, "Error: "+e.Error())
+			}
+			LogDebugSession(s.id, s.ip, "Could not read chunk payload")
 			return false
 		}
 
@@ -351,7 +361,10 @@ func (s *RTMPSession) ReadChunk(r *bufio.Reader) bool {
 	if s.ackSize > 0 && s.inAckSize-s.inLastAck >= s.ackSize {
 		s.inLastAck = s.inAckSize
 		if !s.SendACK(s.inAckSize) {
+			LogDebugSession(s.id, s.ip, "Could not send ACK")
 			return false
+		} else {
+			LogDebugSession(s.id, s.ip, "Sent ACK")
 		}
 	}
 
@@ -363,6 +376,7 @@ func (s *RTMPSession) ReadChunk(r *bufio.Reader) bool {
 		s.bitrate = uint64(math.Round(float64(s.bitrate_cache.bytes) * 8 / float64(diff)))
 		s.bitrate_cache.bytes = 0
 		s.bitrate_cache.last_update = now
+		LogDebugSession(s.id, s.ip, "Bitrate is now: "+strconv.Itoa(int(s.bitrate)))
 	}
 
 	return true
@@ -371,23 +385,33 @@ func (s *RTMPSession) ReadChunk(r *bufio.Reader) bool {
 func (s *RTMPSession) HandlePacket(packet *RTMPPacket) bool {
 	switch packet.header.packet_type {
 	case RTMP_TYPE_SET_CHUNK_SIZE:
+		LogDebugSession(s.id, s.ip, "Received packet: RTMP_TYPE_SET_CHUNK_SIZE")
 		csb := packet.payload[0:4]
 		s.inChunkSize = binary.BigEndian.Uint32(csb)
 	case RTMP_TYPE_WINDOW_ACKNOWLEDGEMENT_SIZE:
+		LogDebugSession(s.id, s.ip, "Received packet: RTMP_TYPE_WINDOW_ACKNOWLEDGEMENT_SIZE")
 		csb := packet.payload[0:4]
 		s.ackSize = binary.BigEndian.Uint32(csb)
 	case RTMP_TYPE_AUDIO:
+		LogDebugSession(s.id, s.ip, "Received packet: RTMP_TYPE_AUDIO")
 		return s.HandleAudioPacket(packet)
 	case RTMP_TYPE_VIDEO:
+		LogDebugSession(s.id, s.ip, "Received packet: RTMP_TYPE_VIDEO")
 		return s.HandleVideoPacket(packet)
 	case RTMP_TYPE_FLEX_MESSAGE:
+		LogDebugSession(s.id, s.ip, "Received packet: RTMP_TYPE_FLEX_MESSAGE")
 		return s.HandleInvoke(packet)
 	case RTMP_TYPE_INVOKE:
+		LogDebugSession(s.id, s.ip, "Received packet: RTMP_TYPE_INVOKE")
 		return s.HandleInvoke(packet)
 	case RTMP_TYPE_DATA:
+		LogDebugSession(s.id, s.ip, "Received packet: RTMP_TYPE_DATA")
 		return s.HandleDataPacketAMF0(packet)
 	case RTMP_TYPE_FLEX_STREAM:
+		LogDebugSession(s.id, s.ip, "Received packet: RTMP_TYPE_FLEX_STREAM")
 		return s.HandleDataPacketAMF3(packet)
+	default:
+		LogDebugSession(s.id, s.ip, "Received packet: "+strconv.Itoa(int(packet.header.packet_type)))
 	}
 
 	return true
@@ -404,6 +428,8 @@ func (s *RTMPSession) HandleInvoke(packet *RTMPPacket) bool {
 	payload := packet.payload[offset:packet.header.length]
 
 	cmd := decodeRTMPCommand(payload)
+
+	LogDebugSession(s.id, s.ip, "Received invoke: "+cmd.cmd)
 
 	switch cmd.cmd {
 	case "connect":
@@ -640,10 +666,99 @@ func (s *RTMPSession) OnClose() {
 }
 
 func (s *RTMPSession) HandleAudioPacket(packet *RTMPPacket) bool {
+	s.publish_mutex.Lock()
+	defer s.publish_mutex.Unlock()
+
+	if !s.isPublishing {
+		return true
+	}
+
+	sound_format := (packet.payload[0] >> 4) & 0x0f
+
+	if s.audioCodec == 0 {
+		s.audioCodec = uint32(sound_format)
+	}
+
+	if (sound_format == 10 || sound_format == 13) && packet.payload[1] == 0 {
+		s.aacSequenceHeader = packet.payload
+	}
+
+	cachePacket := createBlankRTMPPacket()
+	cachePacket.header.fmt = RTMP_CHUNK_TYPE_0
+	cachePacket.header.cid = RTMP_CHANNEL_AUDIO
+	cachePacket.header.packet_type = RTMP_TYPE_AUDIO
+	cachePacket.payload = packet.payload
+	cachePacket.header.length = uint32(len(cachePacket.payload))
+	cachePacket.header.timestamp = s.clock
+
+	if len(s.aacSequenceHeader) == 0 || packet.payload[1] != 0 {
+		s.rtmpGopcache.PushBack(&cachePacket)
+
+		if s.rtmpGopcache.Len() > RTMP_GOP_CACHE_SIZE {
+			s.rtmpGopcache.Remove(s.rtmpGopcache.Front())
+		}
+	}
+
+	players := s.server.GetPlayers(s.channel)
+
+	for i := 0; i < len(players); i++ {
+		if players[i].isPlaying && !players[i].isPause && !players[i].receive_audio {
+			players[i].SendCachePacket(&cachePacket)
+		}
+	}
+
 	return true
 }
 
 func (s *RTMPSession) HandleVideoPacket(packet *RTMPPacket) bool {
+	s.publish_mutex.Lock()
+	defer s.publish_mutex.Unlock()
+
+	if !s.isPublishing {
+		return true
+	}
+
+	frame_type := (packet.payload[0] >> 4) & 0x0f
+	codec_id := packet.payload[0] & 0x0f
+
+	if codec_id == 7 || codec_id == 12 {
+		if frame_type == 1 && packet.payload[1] == 0 {
+			s.avcSequenceHeader = packet.payload
+			s.rtmpGopcache = list.New()
+		}
+	}
+
+	if s.videoCodec == 0 {
+		s.videoCodec = uint32(codec_id)
+	}
+
+	cachePacket := createBlankRTMPPacket()
+	cachePacket.header.fmt = RTMP_CHUNK_TYPE_0
+	cachePacket.header.cid = RTMP_CHANNEL_VIDEO
+	cachePacket.header.packet_type = RTMP_TYPE_VIDEO
+	cachePacket.payload = packet.payload
+	cachePacket.header.length = uint32(len(cachePacket.payload))
+	cachePacket.header.timestamp = s.clock
+
+	// Cache
+	if codec_id == 7 || codec_id == 12 {
+		if frame_type != 1 || packet.payload[1] != 0 {
+			s.rtmpGopcache.PushBack(&cachePacket)
+
+			if s.rtmpGopcache.Len() > RTMP_GOP_CACHE_SIZE {
+				s.rtmpGopcache.Remove(s.rtmpGopcache.Front())
+			}
+		}
+	}
+
+	players := s.server.GetPlayers(s.channel)
+
+	for i := 0; i < len(players); i++ {
+		if players[i].isPlaying && !players[i].isPause && !players[i].receive_audio {
+			players[i].SendCachePacket(&cachePacket)
+		}
+	}
+
 	return true
 }
 

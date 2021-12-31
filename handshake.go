@@ -32,7 +32,7 @@ var GenuineFPConstCrud = append([]byte(GenuineFPConst), RandomCrud...)
 
 func calcHmac(message []byte, key []byte) []byte {
 	h := hmac.New(sha256.New, key)
-	h.Write([]byte(message))
+	h.Write(message)
 	return h.Sum(nil)
 }
 
@@ -76,7 +76,9 @@ func detectClientMessageFormat(clientsig []byte) uint32 {
 	var aux []byte
 
 	sdl = GetServerGenuineConstDigestOffset(clientsig[772:776])
-	msg = append(clientsig[0:sdl], clientsig[(sdl+SHA256DL):]...)
+	msg = make([]byte, sdl)
+	copy(msg, clientsig[0:sdl])
+	msg = append(msg, clientsig[(sdl+SHA256DL):]...)
 
 	if len(msg) < 1504 {
 		aux = make([]byte, 1504-len(msg))
@@ -99,7 +101,9 @@ func detectClientMessageFormat(clientsig []byte) uint32 {
 	}
 
 	sdl = GetClientGenuineConstDigestOffset(clientsig[8:12])
-	msg = append(clientsig[0:sdl], clientsig[(sdl+SHA256DL):]...)
+	msg = make([]byte, sdl)
+	copy(msg, clientsig[0:sdl])
+	msg = append(msg, clientsig[(sdl+SHA256DL):]...)
 
 	if len(msg) < 1504 {
 		aux = make([]byte, 1504-len(msg))
@@ -153,7 +157,9 @@ func generateS1(messageFormat uint32) []byte {
 		serverDigestOffset = GetClientGenuineConstDigestOffset(handshakeBytes[772:776])
 	}
 
-	msg = append(handshakeBytes[0:serverDigestOffset], handshakeBytes[(serverDigestOffset+SHA256DL):]...)
+	msg = make([]byte, serverDigestOffset)
+	copy(msg, handshakeBytes[0:serverDigestOffset])
+	msg = append(msg, handshakeBytes[(serverDigestOffset+SHA256DL):]...)
 	forcedMsgLen := RTMP_SIG_SIZE - SHA256DL
 
 	if len(msg) < forcedMsgLen {
@@ -226,9 +232,11 @@ func generateS0S1S2(clientsig []byte) []byte {
 	messageFormat = detectClientMessageFormat(clientsig)
 
 	if messageFormat == MESSAGE_FORMAT_0 {
+		LogDebug("Using basic handshake")
 		allBytes = append(clientType, clientsig...)
 		allBytes = append(allBytes, clientsig...)
 	} else {
+		LogDebug("Using S1S2 handshake")
 		s1 := generateS1(messageFormat)
 		s2 := generateS2(messageFormat, clientsig)
 		allBytes = append(clientType, s1...)

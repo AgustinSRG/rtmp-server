@@ -5,7 +5,6 @@ package main
 import (
 	"container/list"
 	"crypto/subtle"
-	"encoding/binary"
 )
 
 func (s *RTMPSession) StartIdlePlayers() {
@@ -27,11 +26,8 @@ func (s *RTMPSession) StartIdlePlayers() {
 				for t := s.rtmpGopcache.Front(); t != nil; t = t.Next() {
 					chunks := t.Value
 					switch x := chunks.(type) {
-					case []byte:
-						copyOfChunk := make([]byte, len(x))
-						copy(copyOfChunk, x)
-						binary.LittleEndian.PutUint32(copyOfChunk[8:12], player.playStreamId)
-						player.SendSync(copyOfChunk)
+					case *RTMPPacket:
+						player.SendCachePacket(x)
 					}
 				}
 			}
@@ -64,11 +60,8 @@ func (s *RTMPSession) StartPlayer(player *RTMPSession) {
 		for t := s.rtmpGopcache.Front(); t != nil; t = t.Next() {
 			chunks := t.Value
 			switch x := chunks.(type) {
-			case []byte:
-				copyOfChunk := make([]byte, len(x))
-				copy(copyOfChunk, x)
-				binary.LittleEndian.PutUint32(copyOfChunk[8:12], player.playStreamId)
-				player.SendSync(copyOfChunk)
+			case *RTMPPacket:
+				player.SendCachePacket(x)
 			}
 		}
 	}
