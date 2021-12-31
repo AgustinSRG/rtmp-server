@@ -83,6 +83,9 @@ func (s *RTMPSession) EndPublish(isClose bool) {
 	defer s.publish_mutex.Unlock()
 
 	if s.isPublishing {
+
+		LogDebugSession(s.id, s.ip, "End publish")
+
 		if !isClose {
 			s.SendStatusMessage(s.publishStreamId, "status", "NetStream.Unpublish.Success", s.GetStreamPath()+" is now unpublished.")
 		}

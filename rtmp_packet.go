@@ -72,13 +72,13 @@ func rtmpChunkMessageHeaderCreate(packet *RTMPPacket) []byte {
 		} else {
 			binary.BigEndian.PutUint32(b, uint32(packet.header.timestamp))
 		}
-		out = append(out, b[0:3]...)
+		out = append(out, b[1:]...)
 	}
 
 	if packet.header.fmt <= RTMP_CHUNK_TYPE_1 {
 		b := make([]byte, 4)
 		binary.BigEndian.PutUint32(b, packet.header.length)
-		out = append(out, b[0:3]...)
+		out = append(out, b[1:]...)
 
 		out = append(out, byte(packet.header.packet_type))
 	}

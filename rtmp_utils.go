@@ -68,7 +68,7 @@ const RTMP_TYPE_INVOKE = 20       // AMF0
 const RTMP_TYPE_METADATA = 22
 
 const RTMP_CHUNK_SIZE = 128
-const RTMP_PING_TIME = 60000
+const RTMP_PING_TIME = 10000
 const RTMP_PING_TIMEOUT = 30000
 
 const STREAM_BEGIN = 0x00
@@ -117,6 +117,26 @@ type RTMPCommand struct {
 	arguments map[string]*AMF0Value
 }
 
+func (c *RTMPCommand) GetArg(argName string) *AMF0Value {
+	if c.arguments[argName] != nil {
+		return c.arguments[argName]
+	} else {
+		n := createAMF0Value(AMF0_TYPE_UNDEFINED)
+		return &n
+	}
+}
+
+func (c *RTMPCommand) ToString() string {
+	str := "" + c.cmd + " {\n"
+
+	for argName, argVal := range c.arguments {
+		str += "    '" + argName + "' = " + argVal.ToString("    ") + "\n"
+	}
+
+	str += "}"
+	return str
+}
+
 func (c *RTMPCommand) Encode() []byte {
 	var buf []byte
 
@@ -129,7 +149,11 @@ func (c *RTMPCommand) Encode() []byte {
 
 	for i := 0; i < len(argList); i++ {
 		val := c.arguments[argList[i]]
-		buf = append(buf, amf0EncodeOne(*val)...)
+		if val != nil {
+			buf = append(buf, amf0EncodeOne(*val)...)
+		} else {
+			buf = append(buf, amf0EncodeOne(createAMF0Value(AMF0_TYPE_UNDEFINED))...)
+		}
 	}
 
 	return buf
@@ -149,7 +173,7 @@ func decodeRTMPCommand(data []byte) RTMPCommand {
 
 	argList := rtmpCmdCode[c.cmd]
 
-	for i := 0; i < len(argList); i++ {
+	for i := 0; i < len(argList) && !s.IsEnded(); i++ {
 		val := s.ReadOne()
 		c.arguments[argList[i]] = &val
 	}
@@ -160,6 +184,15 @@ func decodeRTMPCommand(data []byte) RTMPCommand {
 type RTMPData struct {
 	tag       string
 	arguments map[string]*AMF0Value
+}
+
+func (c *RTMPData) GetArg(argName string) *AMF0Value {
+	if c.arguments[argName] != nil {
+		return c.arguments[argName]
+	} else {
+		n := createAMF0Value(AMF0_TYPE_UNDEFINED)
+		return &n
+	}
 }
 
 func (c *RTMPData) Encode() []byte {
@@ -174,7 +207,11 @@ func (c *RTMPData) Encode() []byte {
 
 	for i := 0; i < len(argList); i++ {
 		val := c.arguments[argList[i]]
-		buf = append(buf, amf0EncodeOne(*val)...)
+		if val != nil {
+			buf = append(buf, amf0EncodeOne(*val)...)
+		} else {
+			buf = append(buf, amf0EncodeOne(createAMF0Value(AMF0_TYPE_UNDEFINED))...)
+		}
 	}
 
 	return buf
@@ -194,7 +231,7 @@ func decodeRTMPData(data []byte) RTMPData {
 
 	argList := rtmpDataCode[c.tag]
 
-	for i := 0; i < len(argList); i++ {
+	for i := 0; i < len(argList) && !s.IsEnded(); i++ {
 		val := s.ReadOne()
 		c.arguments[argList[i]] = &val
 	}

@@ -118,6 +118,8 @@ func (s *RTMPSession) SendPingRequest() {
 func (s *RTMPSession) SendInvokeMessage(stream_id uint32, cmd RTMPCommand) {
 	packet := createBlankRTMPPacket()
 
+	LogDebugSession(s.id, s.ip, "Sending invoke message: "+cmd.ToString())
+
 	packet.header.fmt = RTMP_CHUNK_TYPE_0
 	packet.header.cid = RTMP_CHANNEL_INVOKE
 	packet.header.packet_type = RTMP_TYPE_INVOKE
@@ -334,7 +336,7 @@ func (s *RTMPSession) BuildMetadata(data *RTMPData) []byte {
 		arguments: make(map[string]*AMF0Value),
 	}
 
-	cmd.arguments["dataObj"] = data.arguments["dataObj"]
+	cmd.arguments["dataObj"] = data.GetArg("dataObj")
 
 	return cmd.Encode()
 }

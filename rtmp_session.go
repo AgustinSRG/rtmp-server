@@ -429,7 +429,7 @@ func (s *RTMPSession) HandleInvoke(packet *RTMPPacket) bool {
 
 	cmd := decodeRTMPCommand(payload)
 
-	LogDebugSession(s.id, s.ip, "Received invoke: "+cmd.cmd)
+	LogDebugSession(s.id, s.ip, "Received invoke: "+cmd.ToString())
 
 	switch cmd.cmd {
 	case "connect":
@@ -447,30 +447,33 @@ func (s *RTMPSession) HandleInvoke(packet *RTMPPacket) bool {
 	case "closeStream":
 		return s.HandleCloseStream(&cmd, packet)
 	case "receiveAudio":
-		s.receive_audio = cmd.arguments["bool"].GetBool()
+		s.receive_audio = cmd.GetArg("bool").GetBool()
 	case "receiveVideo":
-		s.receive_video = cmd.arguments["bool"].GetBool()
+		s.receive_video = cmd.GetArg("bool").GetBool()
 	}
 
 	return true
 }
 
 func (s *RTMPSession) HandleConnect(cmd *RTMPCommand) bool {
-	s.channel = cmd.arguments["cmdObj"].GetObject()["app"].GetString()
+	s.channel = cmd.GetArg("cmdObj").GetProperty("app").GetString()
 
 	// Validate channel
-	if validateStreamIDString(s.channel) {
+	if !validateStreamIDString(s.channel) {
+		LogRequest(s.id, s.ip, "INVALID CHANNEL '"+s.channel+"'")
 		return false
 	}
 
-	s.objectEncoding = uint32(cmd.arguments["cmdObj"].GetObject()["objectEncoding"].GetInteger())
+	s.objectEncoding = uint32(cmd.GetArg("cmdObj").GetProperty("objectEncoding").GetInteger())
 	s.connectTime = time.Now().UnixMilli()
 	s.bitrate_cache.intervalMs = 1000
 	s.bitrate_cache.last_update = s.connectTime
 	s.bitrate_cache.bytes = 0
 	s.isConnected = true
 
-	transId := cmd.arguments["transId"].GetInteger()
+	transId := cmd.GetArg("transId").GetInteger()
+
+	LogRequest(s.id, s.ip, "CONNECT '"+s.channel+"'")
 
 	s.SendWindowACK(5000000)
 	s.SetPeerBandwidth(5000000, 2)
@@ -481,14 +484,14 @@ func (s *RTMPSession) HandleConnect(cmd *RTMPCommand) bool {
 }
 
 func (s *RTMPSession) HandleCreateStream(cmd *RTMPCommand) bool {
-	transId := cmd.arguments["transId"].GetInteger()
+	transId := cmd.GetArg("transId").GetInteger()
 	s.RespondCreateStream(transId)
 
 	return true
 }
 
 func (s *RTMPSession) HandlePublish(cmd *RTMPCommand, packet *RTMPPacket) bool {
-	sKeyPath := cmd.arguments["streamName"].GetString()
+	sKeyPath := cmd.GetArg("streamName").GetString()
 	sKeyPathSplit := strings.Split(sKeyPath, "?")
 	s.key = sKeyPathSplit[0]
 
@@ -516,13 +519,17 @@ func (s *RTMPSession) HandlePublish(cmd *RTMPCommand, packet *RTMPPacket) bool {
 
 	// Callback limit (TODO)
 
+	LogRequest(s.id, s.ip, "PRE-PUBLISH")
+
 	// Callback
 	if !s.SendStartCallback() {
+		LogRequest(s.id, s.ip, "PUBLISH-INVALID-KEY")
 		s.SendStatusMessage(s.publishStreamId, "error", "NetStream.Publish.BadName", "Invalid stream key provided")
 		return false
 	}
 
 	// Set publisher
+	LogRequest(s.id, s.ip, "PUBLISH #"+strconv.Itoa(int(s.publishStreamId)))
 	s.isPublishing = true
 	s.server.SetPublisher(s.channel, s.key, s.stream_id, s)
 
@@ -534,7 +541,7 @@ func (s *RTMPSession) HandlePublish(cmd *RTMPCommand, packet *RTMPPacket) bool {
 }
 
 func (s *RTMPSession) HandlePlay(cmd *RTMPCommand, packet *RTMPPacket) bool {
-	sKeyPath := cmd.arguments["streamName"].GetString()
+	sKeyPath := cmd.GetArg("streamName").GetString()
 	sKeyPathSplit := strings.Split(sKeyPath, "?")
 	s.key = sKeyPathSplit[0]
 
@@ -551,12 +558,15 @@ func (s *RTMPSession) HandlePlay(cmd *RTMPCommand, packet *RTMPPacket) bool {
 
 	// TODO: Play whitelist
 
+	LogRequest(s.id, s.ip, "PLAY")
+
 	s.RespondPlay()
 
 	// Add player
 	idle, e := s.server.AddPlayer(s.channel, s.key, s)
 
 	if e != nil {
+		LogRequest(s.id, s.ip, "PLAY-INVALID-KEY")
 		s.SendStatusMessage(s.playStreamId, "error", "NetStream.Play.BadName", "Invalid stream key provided")
 		return false // Invalid key
 	}
@@ -566,6 +576,8 @@ func (s *RTMPSession) HandlePlay(cmd *RTMPCommand, packet *RTMPPacket) bool {
 		if publisher != nil {
 			publisher.StartPlayer(s)
 		}
+	} else {
+		LogRequest(s.id, s.ip, "PLAY IDLE")
 	}
 
 	return true
@@ -576,7 +588,7 @@ func (s *RTMPSession) HandlePause(cmd *RTMPCommand) bool {
 		return true
 	}
 
-	s.isPause = cmd.arguments["pause"].GetBool()
+	s.isPause = cmd.GetArg("pause").GetBool()
 
 	if s.isPause {
 		s.SendStreamStatus(STREAM_EOF, s.playStreamId)
@@ -596,10 +608,11 @@ func (s *RTMPSession) HandlePause(cmd *RTMPCommand) bool {
 }
 
 func (s *RTMPSession) HandleDeleteStream(cmd *RTMPCommand) bool {
-	streamId := uint32(cmd.arguments["streamId"].GetInteger())
+	streamId := uint32(cmd.GetArg("streamId").GetInteger())
 
 	if streamId == s.playStreamId {
 		// Close play
+		LogDebugSession(s.id, s.ip, "Close play stream")
 
 		s.server.RemovePlayer(s.channel, s.key, s)
 
@@ -612,6 +625,7 @@ func (s *RTMPSession) HandleDeleteStream(cmd *RTMPCommand) bool {
 
 	if streamId == s.publishStreamId {
 		// Close publish
+		LogDebugSession(s.id, s.ip, "Close publish stream")
 
 		if s.isPublishing {
 			s.EndPublish(false)
@@ -627,6 +641,7 @@ func (s *RTMPSession) DeleteStream(streamId uint32) {
 
 	if streamId == s.playStreamId {
 		// Close play
+		LogDebugSession(s.id, s.ip, "Close play stream: "+strconv.Itoa(int(streamId)))
 
 		s.server.RemovePlayer(s.channel, s.key, s)
 
@@ -637,6 +652,7 @@ func (s *RTMPSession) DeleteStream(streamId uint32) {
 
 	if streamId == s.publishStreamId {
 		// Close publish
+		LogDebugSession(s.id, s.ip, "Close publish stream: "+strconv.Itoa(int(streamId)))
 
 		if s.isPublishing {
 			s.EndPublish(true)
@@ -657,7 +673,6 @@ func (s *RTMPSession) OnClose() {
 	if s.playStreamId > 0 {
 		s.DeleteStream(s.playStreamId)
 	}
-
 	if s.publishStreamId > 0 {
 		s.DeleteStream(s.publishStreamId)
 	}

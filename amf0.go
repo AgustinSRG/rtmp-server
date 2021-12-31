@@ -4,6 +4,7 @@ package main
 
 import (
 	"encoding/binary"
+	"fmt"
 	"math"
 	"strconv"
 )
@@ -39,12 +40,77 @@ type AMF0Value struct {
 
 func (v *AMF0Value) SetFloatVal(val float64) {
 	v.float_val = val
-	v.int_val = int64(math.Float64bits(val))
+	v.int_val = int64(val)
 }
 
 func (v *AMF0Value) SetIntegerVal(val int64) {
 	v.int_val = val
-	v.float_val = math.Float64frombits(uint64(val))
+	v.float_val = float64(val)
+}
+
+func (v *AMF0Value) ToString(tabs string) string {
+	if v.IsAMF3() {
+		return "AMF3()"
+	} else {
+		switch v.amf_type {
+		case AMF0_TYPE_NULL:
+			return "NULL"
+		case AMF0_TYPE_UNDEFINED:
+			return "UNDEFINED"
+		case AMF0_TYPE_BOOL:
+			if v.bool_val {
+				return "TRUE"
+			} else {
+				return "FALSE"
+			}
+		case AMF0_TYPE_STRING:
+			return "'" + v.str_val + "'"
+		case AMF0_TYPE_LONG_STRING:
+			return "L'" + v.str_val + "'"
+		case AMF0_TYPE_XML_DOC:
+			return "XML'" + v.str_val + "'"
+		case AMF0_TYPE_NUMBER:
+			return fmt.Sprintf("%f", v.float_val)
+		case AMF0_TYPE_DATE:
+			return fmt.Sprintf("DATE(%f)", v.float_val)
+		case AMF0_TYPE_REF:
+			return "REF#" + strconv.Itoa(int(v.int_val))
+		case AMF0_TYPE_OBJECT:
+			str := "{\n"
+			for key, val := range v.obj_val {
+				str += tabs + "    '" + key + "' = " + val.ToString(tabs+"    ") + "\n"
+			}
+			str += tabs + "}"
+			return str
+		case AMF0_TYPE_TYPED_OBJ:
+			str := v.str_val + " {\n"
+			for key, val := range v.obj_val {
+				str += tabs + "    '" + key + "' = " + val.ToString(tabs+"    ") + "\n"
+			}
+			str += tabs + "}"
+			return str
+		case AMF0_TYPE_ARRAY:
+			str := " ARRAY [\n"
+
+			for i := 0; i < len(v.array_val); i++ {
+				str += tabs + "    " + v.array_val[i].ToString(tabs+"    ") + "\n"
+			}
+
+			str += tabs + "]"
+			return str
+		case AMF0_TYPE_STRICT_ARRAY:
+			str := " STRICT_ARRAY [\n"
+
+			for i := 0; i < len(v.array_val); i++ {
+				str += tabs + "    " + v.array_val[i].ToString(tabs+"    ") + "\n"
+			}
+
+			str += tabs + "]"
+			return str
+		default:
+			return "UNKNOWN_TYPE"
+		}
+	}
 }
 
 func (v *AMF0Value) IsAMF3() bool {
@@ -116,6 +182,17 @@ func (v *AMF0Value) GetObject() map[string]*AMF0Value {
 		return make(map[string]*AMF0Value)
 	} else {
 		return v.obj_val
+	}
+}
+
+func (v *AMF0Value) GetProperty(propName string) *AMF0Value {
+	o := v.GetObject()
+	p := o[propName]
+	if p != nil {
+		return p
+	} else {
+		n := createAMF0Value(AMF0_TYPE_UNDEFINED)
+		return &n
 	}
 }
 
@@ -289,7 +366,7 @@ func (s *AMFDecodingStream) Skip(n int) {
 }
 
 func (s *AMFDecodingStream) IsEnded() bool {
-	return s.pos < len(s.buffer)
+	return s.pos >= len(s.buffer)
 }
 
 func (s *AMFDecodingStream) ReadOne() AMF0Value {

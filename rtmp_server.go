@@ -181,7 +181,7 @@ func (server *RTMPServer) RemovePublisher(channel string) {
 	server.mutex.Lock()
 	defer server.mutex.Unlock()
 
-	if server.channels[channel] != nil {
+	if server.channels[channel] == nil {
 		return
 	}
 
