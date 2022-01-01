@@ -4,7 +4,12 @@ package main
 
 import (
 	"encoding/binary"
+	"net"
+	"os"
+	"strings"
 	"time"
+
+	"github.com/netdata/go.d.plugin/pkg/iprange"
 )
 
 func (s *RTMPSession) SendACK(size uint32) bool {
@@ -362,4 +367,31 @@ func (s *RTMPSession) SendCachePacket(cache *RTMPPacket) {
 	chunks := packet.CreateChunks()
 
 	s.SendSync(chunks)
+}
+
+func (s *RTMPSession) CanPlay() bool {
+	r := os.Getenv("RTMP_PLAY_WHITELIST")
+
+	if r == "" || r == "*" {
+		return true
+	}
+
+	ip := net.ParseIP(s.ip)
+
+	parts := strings.Split(r, ",")
+
+	for i := 0; i < len(parts); i++ {
+		rang, e := iprange.ParseRange(parts[i])
+
+		if e != nil {
+			LogError(e)
+			continue
+		}
+
+		if rang.Contains(ip) {
+			return true
+		}
+	}
+
+	return false
 }

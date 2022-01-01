@@ -568,7 +568,11 @@ func (s *RTMPSession) HandlePlay(cmd *RTMPCommand, packet *RTMPPacket) bool {
 		return true
 	}
 
-	// TODO: Play whitelist
+	// Play whitelist
+	if !s.CanPlay() {
+		s.SendStatusMessage(s.playStreamId, "error", "NetStream.Play.BadName", "Your net address is not whitelisted for playing")
+		return false
+	}
 
 	LogRequest(s.id, s.ip, "PLAY")
 
