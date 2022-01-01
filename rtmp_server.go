@@ -354,6 +354,8 @@ func (server *RTMPServer) Start() {
 func (server *RTMPServer) HandleConnection(id uint64, ip string, c net.Conn) {
 	s := CreateRTMPSession(server, id, ip, c)
 
+	server.AddSession(&s)
+
 	defer func() {
 		if err := recover(); err != nil {
 			switch x := err.(type) {

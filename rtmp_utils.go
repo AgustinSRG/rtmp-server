@@ -68,8 +68,8 @@ const RTMP_TYPE_INVOKE = 20       // AMF0
 const RTMP_TYPE_METADATA = 22
 
 const RTMP_CHUNK_SIZE = 128
-const RTMP_PING_TIME = 10000
-const RTMP_PING_TIMEOUT = 30000
+const RTMP_PING_TIME = 30000
+const RTMP_PING_TIMEOUT = 60000
 
 const STREAM_BEGIN = 0x00
 const STREAM_EOF = 0x01
@@ -186,6 +186,17 @@ type RTMPData struct {
 	arguments map[string]*AMF0Value
 }
 
+func (c *RTMPData) ToString() string {
+	str := "" + c.tag + " {\n"
+
+	for argName, argVal := range c.arguments {
+		str += "    '" + argName + "' = " + argVal.ToString("    ") + "\n"
+	}
+
+	str += "}"
+	return str
+}
+
 func (c *RTMPData) GetArg(argName string) *AMF0Value {
 	if c.arguments[argName] != nil {
 		return c.arguments[argName]
@@ -209,8 +220,6 @@ func (c *RTMPData) Encode() []byte {
 		val := c.arguments[argList[i]]
 		if val != nil {
 			buf = append(buf, amf0EncodeOne(*val)...)
-		} else {
-			buf = append(buf, amf0EncodeOne(createAMF0Value(AMF0_TYPE_UNDEFINED))...)
 		}
 	}
 

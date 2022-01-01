@@ -5,5 +5,7 @@ func main() {
 
 	server := CreateRTMPServer()
 
-	server.Start()
+	if server != nil {
+		server.Start()
+	}
 }

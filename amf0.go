@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"sort"
 	"strconv"
 )
 
@@ -291,11 +292,24 @@ func amf0EncodeObject(o map[string]*AMF0Value) []byte {
 	var r []byte
 	r = make([]byte, 0)
 
-	for key, element := range o {
+	keys := make([]string, len(o))
+
+	i := 0
+	for k := range o {
+		keys[i] = k
+		i++
+	}
+
+	sort.Strings(keys)
+
+	for j := 0; j < len(keys); j++ {
+		key := keys[j]
+		element := o[key]
 		r = append(r, amf0EncodeString(key)...)
 		r = append(r, amf0EncodeOne(*element)...)
 	}
 
+	r = append(r, amf0EncodeString("")...)
 	r = append(r, []byte{AMF0_OBJECT_TERM_CODE}...)
 
 	return r

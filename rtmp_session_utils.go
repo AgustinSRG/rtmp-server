@@ -92,7 +92,8 @@ func (s *RTMPSession) SendPingRequest() {
 		return
 	}
 
-	currentTimestamp := time.Now().UnixMilli() - s.connectTime
+	now := time.Now().UnixMilli()
+	currentTimestamp := now - s.connectTime
 	packet := createBlankRTMPPacket()
 
 	packet.header.fmt = RTMP_CHUNK_TYPE_0
@@ -112,6 +113,7 @@ func (s *RTMPSession) SendPingRequest() {
 	packet.header.length = uint32(len(packet.payload))
 
 	bytes := packet.CreateChunks()
+	LogDebugSession(s.id, s.ip, "Sending ping request")
 	s.SendSync(bytes)
 }
 
@@ -196,7 +198,7 @@ func (s *RTMPSession) SendSampleAccess(stream_id uint32) {
 	s.SendDataMessage(stream_id, cmd)
 }
 
-func (s *RTMPSession) RespondConnect(tid int64) {
+func (s *RTMPSession) RespondConnect(tid int64, hasObjectEncoding bool) {
 	cmd := RTMPCommand{
 		cmd:       "_result",
 		arguments: make(map[string]*AMF0Value),
@@ -232,9 +234,14 @@ func (s *RTMPSession) RespondConnect(tid int64) {
 	info_description.str_val = "Connection succeeded."
 	info.obj_val["description"] = &info_description
 
-	objectEncoding := createAMF0Value(AMF0_TYPE_NUMBER)
-	objectEncoding.SetIntegerVal(int64(s.objectEncoding))
-	info.obj_val["objectEncoding"] = &objectEncoding
+	if hasObjectEncoding {
+		objectEncoding := createAMF0Value(AMF0_TYPE_NUMBER)
+		objectEncoding.SetIntegerVal(int64(s.objectEncoding))
+		info.obj_val["objectEncoding"] = &objectEncoding
+	} else {
+		objectEncoding := createAMF0Value(AMF0_TYPE_UNDEFINED)
+		info.obj_val["objectEncoding"] = &objectEncoding
+	}
 
 	cmd.arguments["info"] = &info
 

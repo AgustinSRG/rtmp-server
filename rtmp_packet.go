@@ -2,7 +2,9 @@
 
 package main
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+)
 
 type RTMPPacketHeader struct {
 	timestamp int64
@@ -23,6 +25,7 @@ type RTMPPacket struct {
 	payload  []byte
 	capacity uint32
 	bytes    uint32
+	handled  bool
 }
 
 func createBlankRTMPPacket() RTMPPacket {
@@ -39,6 +42,7 @@ func createBlankRTMPPacket() RTMPPacket {
 		payload:  []byte{},
 		capacity: 0,
 		bytes:    0,
+		handled:  false,
 	}
 }
 
@@ -160,6 +164,9 @@ func (packet *RTMPPacket) CreateChunks() []byte {
 			payloadOffset += payloadSize
 		}
 	}
+
+	//LogDebug("PAYLOAD: " + hex.EncodeToString(packet.payload))
+	//LogDebug("CHUNKS: " + hex.EncodeToString(chunks))
 
 	return chunks
 }

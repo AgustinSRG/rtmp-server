@@ -141,10 +141,7 @@ func (s *RTMPSession) GetStreamPath() string {
 func (s *RTMPSession) HandleSession() {
 	r := bufio.NewReader(s.conn)
 
-	err := s.conn.SetReadDeadline(time.Now().Add(RTMP_PING_TIMEOUT * time.Millisecond))
-	if err != nil {
-		return
-	}
+	s.conn.SetReadDeadline(time.Now().Add(RTMP_PING_TIMEOUT * time.Millisecond))
 
 	// Handshake
 
@@ -159,6 +156,7 @@ func (s *RTMPSession) HandleSession() {
 	}
 
 	handshakeBytes := make([]byte, RTMP_HANDSHAKE_SIZE)
+	s.conn.SetReadDeadline(time.Now().Add(RTMP_PING_TIMEOUT * time.Millisecond))
 	n, e := io.ReadFull(r, handshakeBytes)
 	if e != nil || n != RTMP_HANDSHAKE_SIZE {
 		LogDebugSession(s.id, s.ip, "Invalid handshake received")
@@ -173,6 +171,7 @@ func (s *RTMPSession) HandleSession() {
 	}
 
 	s1Copy := make([]byte, RTMP_HANDSHAKE_SIZE)
+	s.conn.SetReadDeadline(time.Now().Add(RTMP_PING_TIMEOUT * time.Millisecond))
 	n, e = io.ReadFull(r, s1Copy)
 	if e != nil || n != RTMP_HANDSHAKE_SIZE {
 		LogDebugSession(s.id, s.ip, "Invalid hanshake response received")
@@ -192,6 +191,7 @@ func (s *RTMPSession) ReadChunk(r *bufio.Reader) bool {
 	bytesReadCount = 0
 
 	// Start byte
+	s.conn.SetReadDeadline(time.Now().Add(RTMP_PING_TIMEOUT * time.Millisecond))
 	startByte, e := r.ReadByte()
 	bytesReadCount++
 	if e != nil {
@@ -212,6 +212,7 @@ func (s *RTMPSession) ReadChunk(r *bufio.Reader) bool {
 	}
 
 	for i := 1; i < parserBasicBytes; i++ {
+		s.conn.SetReadDeadline(time.Now().Add(RTMP_PING_TIMEOUT * time.Millisecond))
 		b, e := r.ReadByte()
 		bytesReadCount++
 		if e != nil {
@@ -226,6 +227,7 @@ func (s *RTMPSession) ReadChunk(r *bufio.Reader) bool {
 	size := int(rtmpHeaderSize[header[0]>>6])
 	if size > 0 {
 		headerLeft := make([]byte, size)
+		s.conn.SetReadDeadline(time.Now().Add(RTMP_PING_TIMEOUT * time.Millisecond))
 		n, e := io.ReadFull(r, headerLeft)
 		bytesReadCount += uint32(size)
 		if e != nil || n != size {
@@ -238,7 +240,7 @@ func (s *RTMPSession) ReadChunk(r *bufio.Reader) bool {
 	// Parse packet
 	var fmt uint32
 	var cid uint32
-	fmt = uint32(header[0]) >> 6
+	fmt = uint32(header[0] >> 6)
 	switch parserBasicBytes {
 	case 2:
 		cid = 64 + uint32(header[1])
@@ -252,6 +254,11 @@ func (s *RTMPSession) ReadChunk(r *bufio.Reader) bool {
 
 	if s.inPackets[cid] != nil {
 		packet = s.inPackets[cid]
+		if packet.handled {
+			packet.handled = false
+			packet.payload = make([]byte, 0)
+			packet.bytes = 0
+		}
 	} else {
 		bp := createBlankRTMPPacket()
 		packet = &bp
@@ -281,12 +288,13 @@ func (s *RTMPSession) ReadChunk(r *bufio.Reader) bool {
 	}
 
 	// Stream ID
-	if packet.header.fmt <= RTMP_CHUNK_TYPE_0 {
+	if packet.header.fmt == RTMP_CHUNK_TYPE_0 {
 		packet.header.stream_id = binary.LittleEndian.Uint32(header[offset : offset+4])
 		offset += 4
 	}
 
 	if packet.header.packet_type > RTMP_TYPE_METADATA {
+		LogDebugSession(s.id, s.ip, "Received stop packet: "+strconv.Itoa(int(packet.header.packet_type)))
 		return false
 	}
 
@@ -294,6 +302,7 @@ func (s *RTMPSession) ReadChunk(r *bufio.Reader) bool {
 	var extended_timestamp int64
 	if packet.header.timestamp == 0xffffff {
 		tsBytes := make([]byte, 4)
+		s.conn.SetReadDeadline(time.Now().Add(RTMP_PING_TIMEOUT * time.Millisecond))
 		n, e := io.ReadFull(r, tsBytes)
 		bytesReadCount += 4
 		if e != nil || n != 4 {
@@ -326,8 +335,9 @@ func (s *RTMPSession) ReadChunk(r *bufio.Reader) bool {
 		sizeToRead = packet.header.length - packet.bytes
 	}
 	if sizeToRead > 0 {
-		LogDebugSession(s.id, s.ip, "Reading chunk with size: "+strconv.Itoa(int(sizeToRead))+" of total length = "+strconv.Itoa(int(packet.header.length)))
+		// LogDebugSession(s.id, s.ip, "Reading chunk with size: "+strconv.Itoa(int(sizeToRead))+" of total length = "+strconv.Itoa(int(packet.header.length)))
 		bytesToRead := make([]byte, sizeToRead)
+		s.conn.SetReadDeadline(time.Now().Add(RTMP_PING_TIMEOUT * time.Millisecond))
 		n, e := io.ReadFull(r, bytesToRead)
 		bytesReadCount += sizeToRead
 		if e != nil || uint32(n) != sizeToRead {
@@ -344,9 +354,10 @@ func (s *RTMPSession) ReadChunk(r *bufio.Reader) bool {
 
 	// If packet is ready, handle
 	if packet.bytes >= packet.header.length {
-		delete(s.inPackets, packet.header.cid) // Remove from pending packets
+		packet.handled = true // Remove from pending packets
 		if packet.clock <= 0xffffffff {
 			if !s.HandlePacket(packet) {
+				LogDebugSession(s.id, s.ip, "Could not handle packet")
 				return false
 			}
 		}
@@ -364,7 +375,7 @@ func (s *RTMPSession) ReadChunk(r *bufio.Reader) bool {
 			LogDebugSession(s.id, s.ip, "Could not send ACK")
 			return false
 		} else {
-			LogDebugSession(s.id, s.ip, "Sent ACK")
+			LogDebugSession(s.id, s.ip, "Sent ACK: "+strconv.Itoa(int(s.inAckSize)))
 		}
 	}
 
@@ -392,6 +403,7 @@ func (s *RTMPSession) HandlePacket(packet *RTMPPacket) bool {
 		LogDebugSession(s.id, s.ip, "Received packet: RTMP_TYPE_WINDOW_ACKNOWLEDGEMENT_SIZE")
 		csb := packet.payload[0:4]
 		s.ackSize = binary.BigEndian.Uint32(csb)
+		LogDebugSession(s.id, s.ip, "ACK size updated: "+strconv.Itoa(int(s.ackSize)))
 	case RTMP_TYPE_AUDIO:
 		LogDebugSession(s.id, s.ip, "Received packet: RTMP_TYPE_AUDIO")
 		return s.HandleAudioPacket(packet)
@@ -478,7 +490,7 @@ func (s *RTMPSession) HandleConnect(cmd *RTMPCommand) bool {
 	s.SendWindowACK(5000000)
 	s.SetPeerBandwidth(5000000, 2)
 	s.SetChunkSize(RTMP_CHUNK_SIZE)
-	s.RespondConnect(transId)
+	s.RespondConnect(transId, !cmd.GetArg("cmdObj").GetProperty("objectEncoding").IsUndefined())
 
 	return true
 }
@@ -788,6 +800,7 @@ func (s *RTMPSession) HandleDataPacketAMF3(packet *RTMPPacket) bool {
 }
 
 func (s *RTMPSession) HandleRTMPData(packet *RTMPPacket, data *RTMPData) bool {
+	LogDebugSession(s.id, s.ip, "Received data: "+data.ToString())
 	switch data.tag {
 	case "@setDataFrame":
 		metaData := s.BuildMetadata(data)
