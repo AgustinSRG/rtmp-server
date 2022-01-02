@@ -92,11 +92,9 @@ func (v *AMF0Value) ToString(tabs string) string {
 			return str
 		case AMF0_TYPE_ARRAY:
 			str := " ARRAY [\n"
-
-			for i := 0; i < len(v.array_val); i++ {
-				str += tabs + "    " + v.array_val[i].ToString(tabs+"    ") + "\n"
+			for key, val := range v.obj_val {
+				str += tabs + "    '" + key + "' = " + val.ToString(tabs+"    ") + "\n"
 			}
-
 			str += tabs + "]"
 			return str
 		case AMF0_TYPE_STRICT_ARRAY:
@@ -243,7 +241,7 @@ func amf0EncodeOne(val AMF0Value) []byte {
 	case AMF0_TYPE_REF:
 		result = append(result, amf0EncodeRef(uint16(val.int_val))...)
 	case AMF0_TYPE_ARRAY:
-		result = append(result, amf0EncodeArray(val.array_val)...)
+		result = append(result, amf0EncodeArray(val.obj_val)...)
 	case AMF0_TYPE_STRICT_ARRAY:
 		result = append(result, amf0EncodeStrictArray(val.array_val)...)
 	case AMF0_TYPE_TYPED_OBJ:
@@ -315,19 +313,11 @@ func amf0EncodeObject(o map[string]*AMF0Value) []byte {
 	return r
 }
 
-func amf0EncodeArray(array []*AMF0Value) []byte {
+func amf0EncodeArray(o map[string]*AMF0Value) []byte {
 	// Length
 	var r []byte
 	r = make([]byte, 4)
-	binary.BigEndian.PutUint32(r, uint32(len(array)))
-
-	// Values
-	var o map[string]*AMF0Value
-	o = make(map[string]*AMF0Value)
-
-	for i := 0; i < len(array); i++ {
-		o[strconv.Itoa(i)] = array[i]
-	}
+	binary.BigEndian.PutUint32(r, uint32(len(o)))
 
 	return append(r, amf0EncodeObject(o)...)
 }
@@ -407,7 +397,7 @@ func (s *AMFDecodingStream) ReadOne() AMF0Value {
 	case AMF0_TYPE_REF:
 		s.Skip(2)
 	case AMF0_TYPE_ARRAY:
-		r.array_val = s.ReadArray()
+		r.obj_val = s.ReadArray()
 	case AMF0_TYPE_STRICT_ARRAY:
 		r.array_val = s.ReadStrictArray()
 	case AMF0_TYPE_SWITCH_AMF3:
@@ -455,26 +445,10 @@ func (s *AMFDecodingStream) ReadObject() map[string]*AMF0Value {
 	return o
 }
 
-func (s *AMFDecodingStream) ReadArray() []*AMF0Value {
+func (s *AMFDecodingStream) ReadArray() map[string]*AMF0Value {
 	s.Skip(4)
 	o := s.ReadObject()
-	r := make([]*AMF0Value, len(o))
-
-	for i := 0; i < len(r); i++ {
-		nv := createAMF0Value(AMF0_TYPE_UNDEFINED)
-		r[i] = &nv
-	}
-
-	for key, value := range o {
-		v, e := strconv.Atoi(key)
-		if e != nil {
-			if v >= 0 && v < len(r) {
-				r[v] = value
-			}
-		}
-	}
-
-	return r
+	return o
 }
 
 func (s *AMFDecodingStream) ReadStrictArray() []*AMF0Value {

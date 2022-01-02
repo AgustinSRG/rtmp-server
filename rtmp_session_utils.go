@@ -299,6 +299,8 @@ func (s *RTMPSession) SendMetadata(metaData []byte, timestamp int64) {
 
 	chunks := packet.CreateChunks(int(s.outChunkSize))
 
+	LogDebugSession(s.id, s.ip, "Send meta data")
+
 	s.SendSync(chunks)
 }
 
@@ -306,6 +308,8 @@ func (s *RTMPSession) SendAudioCodecHeader(audioCodec uint32, aacSequenceHeader 
 	if audioCodec != 10 && audioCodec != 13 {
 		return
 	}
+
+	LogDebugSession(s.id, s.ip, "Send AUDIO codec header")
 
 	packet := createBlankRTMPPacket()
 
@@ -326,6 +330,8 @@ func (s *RTMPSession) SendVideoCodecHeader(videoCodec uint32, avcSequenceHeader 
 	if videoCodec != 7 && videoCodec != 12 {
 		return
 	}
+
+	LogDebugSession(s.id, s.ip, "Send VIDEO codec header")
 
 	packet := createBlankRTMPPacket()
 

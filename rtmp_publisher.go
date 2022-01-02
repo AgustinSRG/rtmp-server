@@ -18,7 +18,7 @@ func (s *RTMPSession) StartIdlePlayers() {
 		if subtle.ConstantTimeCompare([]byte(s.key), []byte(idlePlayers[i].key)) == 1 {
 			player := idlePlayers[i]
 
-			LogRequest(player.id, player.ip, "PLAY START")
+			LogRequest(player.id, player.ip, "PLAY START '"+player.channel+"'")
 
 			player.SendMetadata(s.metaData, 0)
 			player.SendAudioCodecHeader(s.audioCodec, s.aacSequenceHeader, 0)
@@ -37,6 +37,7 @@ func (s *RTMPSession) StartIdlePlayers() {
 			player.isPlaying = true
 			player.isIdling = false
 		} else {
+			LogRequest(idlePlayers[i].id, idlePlayers[i].ip, "Error: Invalid stream key provided")
 			idlePlayers[i].SendStatusMessage(s.playStreamId, "error", "NetStream.Play.BadName", "Invalid stream key provided")
 			idlePlayers[i].Kill()
 		}

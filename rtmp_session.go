@@ -408,10 +408,8 @@ func (s *RTMPSession) HandlePacket(packet *RTMPPacket) bool {
 		s.ackSize = binary.BigEndian.Uint32(csb)
 		LogDebugSession(s.id, s.ip, "ACK size updated: "+strconv.Itoa(int(s.ackSize)))
 	case RTMP_TYPE_AUDIO:
-		LogDebugSession(s.id, s.ip, "Received packet: RTMP_TYPE_AUDIO")
 		return s.HandleAudioPacket(packet)
 	case RTMP_TYPE_VIDEO:
-		LogDebugSession(s.id, s.ip, "Received packet: RTMP_TYPE_VIDEO")
 		return s.HandleVideoPacket(packet)
 	case RTMP_TYPE_FLEX_MESSAGE:
 		LogDebugSession(s.id, s.ip, "Received packet: RTMP_TYPE_FLEX_MESSAGE")
@@ -714,7 +712,9 @@ func (s *RTMPSession) HandleAudioPacket(packet *RTMPPacket) bool {
 		s.audioCodec = uint32(sound_format)
 	}
 
-	if (sound_format == 10 || sound_format == 13) && packet.payload[1] == 0 {
+	isHeader := (sound_format == 10 || sound_format == 13) && packet.payload[1] == 0
+
+	if isHeader {
 		s.aacSequenceHeader = packet.payload
 	}
 
@@ -726,7 +726,7 @@ func (s *RTMPSession) HandleAudioPacket(packet *RTMPPacket) bool {
 	cachePacket.header.length = uint32(len(cachePacket.payload))
 	cachePacket.header.timestamp = s.clock
 
-	if len(s.aacSequenceHeader) == 0 || packet.payload[1] != 0 {
+	if !isHeader {
 		s.rtmpGopcache.PushBack(&cachePacket)
 
 		if s.rtmpGopcache.Len() > RTMP_GOP_CACHE_SIZE {
@@ -737,7 +737,7 @@ func (s *RTMPSession) HandleAudioPacket(packet *RTMPPacket) bool {
 	players := s.server.GetPlayers(s.channel)
 
 	for i := 0; i < len(players); i++ {
-		if players[i].isPlaying && !players[i].isPause && !players[i].receive_audio {
+		if players[i].isPlaying && !players[i].isPause && players[i].receive_audio {
 			players[i].SendCachePacket(&cachePacket)
 		}
 	}
@@ -756,11 +756,11 @@ func (s *RTMPSession) HandleVideoPacket(packet *RTMPPacket) bool {
 	frame_type := (packet.payload[0] >> 4) & 0x0f
 	codec_id := packet.payload[0] & 0x0f
 
-	if codec_id == 7 || codec_id == 12 {
-		if frame_type == 1 && packet.payload[1] == 0 {
-			s.avcSequenceHeader = packet.payload
-			s.rtmpGopcache = list.New()
-		}
+	isHeader := (codec_id == 7 || codec_id == 12) && (frame_type == 1 && packet.payload[1] == 0)
+
+	if isHeader {
+		s.avcSequenceHeader = packet.payload
+		s.rtmpGopcache = list.New()
 	}
 
 	if s.videoCodec == 0 {
@@ -776,20 +776,18 @@ func (s *RTMPSession) HandleVideoPacket(packet *RTMPPacket) bool {
 	cachePacket.header.timestamp = s.clock
 
 	// Cache
-	if codec_id == 7 || codec_id == 12 {
-		if frame_type != 1 || packet.payload[1] != 0 {
-			s.rtmpGopcache.PushBack(&cachePacket)
+	if isHeader {
+		s.rtmpGopcache.PushBack(&cachePacket)
 
-			if s.rtmpGopcache.Len() > RTMP_GOP_CACHE_SIZE {
-				s.rtmpGopcache.Remove(s.rtmpGopcache.Front())
-			}
+		if s.rtmpGopcache.Len() > RTMP_GOP_CACHE_SIZE {
+			s.rtmpGopcache.Remove(s.rtmpGopcache.Front())
 		}
 	}
 
 	players := s.server.GetPlayers(s.channel)
 
 	for i := 0; i < len(players); i++ {
-		if players[i].isPlaying && !players[i].isPause && !players[i].receive_audio {
+		if players[i].isPlaying && !players[i].isPause && players[i].receive_video {
 			players[i].SendCachePacket(&cachePacket)
 		}
 	}

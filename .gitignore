@@ -12,3 +12,4 @@ temp
 # Ignore .env
 
 .env
+*.log
