@@ -117,7 +117,7 @@ func (s *RTMPSession) SendPingRequest() {
 
 	packet.header.length = uint32(len(packet.payload))
 
-	bytes := packet.CreateChunks()
+	bytes := packet.CreateChunks(int(s.outChunkSize))
 	LogDebugSession(s.id, s.ip, "Sending ping request")
 	s.SendSync(bytes)
 }
@@ -134,7 +134,7 @@ func (s *RTMPSession) SendInvokeMessage(stream_id uint32, cmd RTMPCommand) {
 	packet.payload = cmd.Encode()
 	packet.header.length = uint32(len(packet.payload))
 
-	bytes := packet.CreateChunks()
+	bytes := packet.CreateChunks(int(s.outChunkSize))
 	s.SendSync(bytes)
 }
 
@@ -148,7 +148,7 @@ func (s *RTMPSession) SendDataMessage(stream_id uint32, data RTMPData) {
 	packet.payload = data.Encode()
 	packet.header.length = uint32(len(packet.payload))
 
-	bytes := packet.CreateChunks()
+	bytes := packet.CreateChunks(int(s.outChunkSize))
 	s.SendSync(bytes)
 }
 
@@ -297,7 +297,7 @@ func (s *RTMPSession) SendMetadata(metaData []byte, timestamp int64) {
 	packet.header.stream_id = s.playStreamId
 	packet.header.timestamp = timestamp
 
-	chunks := packet.CreateChunks()
+	chunks := packet.CreateChunks(int(s.outChunkSize))
 
 	s.SendSync(chunks)
 }
@@ -317,7 +317,7 @@ func (s *RTMPSession) SendAudioCodecHeader(audioCodec uint32, aacSequenceHeader 
 	packet.header.stream_id = s.playStreamId
 	packet.header.timestamp = timestamp
 
-	chunks := packet.CreateChunks()
+	chunks := packet.CreateChunks(int(s.outChunkSize))
 
 	s.SendSync(chunks)
 }
@@ -337,7 +337,7 @@ func (s *RTMPSession) SendVideoCodecHeader(videoCodec uint32, avcSequenceHeader 
 	packet.header.stream_id = s.playStreamId
 	packet.header.timestamp = timestamp
 
-	chunks := packet.CreateChunks()
+	chunks := packet.CreateChunks(int(s.outChunkSize))
 
 	s.SendSync(chunks)
 }
@@ -364,7 +364,7 @@ func (s *RTMPSession) SendCachePacket(cache *RTMPPacket) {
 	packet.header.stream_id = s.playStreamId
 	packet.header.timestamp = cache.header.timestamp
 
-	chunks := packet.CreateChunks()
+	chunks := packet.CreateChunks(int(s.outChunkSize))
 
 	s.SendSync(chunks)
 }

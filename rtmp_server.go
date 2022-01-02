@@ -461,3 +461,19 @@ func (server *RTMPServer) HandleConnection(id uint64, ip string, c net.Conn) {
 
 	s.HandleSession()
 }
+
+func (server *RTMPServer) getOutChunkSize() uint32 {
+	r := os.Getenv("RTMP_CHUNK_SIZE")
+
+	if r == "" {
+		return RTMP_CHUNK_SIZE
+	}
+
+	n, e := strconv.Atoi(r)
+
+	if e != nil || n <= RTMP_CHUNK_SIZE {
+		return RTMP_CHUNK_SIZE
+	}
+
+	return uint32(n)
+}

@@ -49,6 +49,8 @@ Set the `CALLBACK_URL` environment variable to the remote server that is going t
 
 The events are sent as HTTP(S) **POST** requests to the given URL, with empty body, and with a header with name `rtmp-event`, containing the event data encoded as a **Base 64 JWT (JSON Web Token)**, signed using a secret you must provide using the `JWT_SECRET` environment variable.
 
+The JWT is signed using the algorithm `HMAC_256`.
+
 The JWT contains the following fields:
  - Subject (`sub`) is `rtmp_event`.
  - Event name (`event`) can be `start` or `stop`.
@@ -105,6 +107,7 @@ Here is a list with more options you can configure:
 | Variable Name | Description |
 |---|---|
 | RTMP_PORT | RTMP listening port. Default is `1935` |
+| RTMP_CHUNK_SIZE | RTMP Chunk size in bytes. Default is `128` |
 | LOG_REQUESTS | Set to `YES` or `NO`. By default is `YES` |
 | LOG_DEBUG | Set to `YES` or `NO`. By default is `NO` |
 | ID_MAX_LENGTH | Max length for `CHANNEL` and `KEY`. By default is 128 characters |

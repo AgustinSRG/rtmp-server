@@ -96,7 +96,7 @@ func rtmpChunkMessageHeaderCreate(packet *RTMPPacket) []byte {
 	return out
 }
 
-func (packet *RTMPPacket) CreateChunks() []byte {
+func (packet *RTMPPacket) CreateChunks(outChunkSize int) []byte {
 	chunkBasicHeader := rtmpChunkBasicHeaderCreate(packet.header.fmt, packet.header.cid)
 	chunkBasicHeader3 := rtmpChunkBasicHeaderCreate(RTMP_CHUNK_TYPE_3, packet.header.cid)
 
@@ -119,13 +119,13 @@ func (packet *RTMPPacket) CreateChunks() []byte {
 		headerSize += 4
 	}
 
-	n = headerSize + payloadSize + (payloadSize / RTMP_CHUNK_SIZE)
+	n = headerSize + payloadSize + (payloadSize / outChunkSize)
 
 	if useExtendedTimestamp {
-		n += (payloadSize / RTMP_CHUNK_SIZE) * 4
+		n += (payloadSize / outChunkSize) * 4
 	}
 
-	if (payloadSize % RTMP_CHUNK_SIZE) == 0 {
+	if (payloadSize % outChunkSize) == 0 {
 		n--
 		if useExtendedTimestamp {
 			n -= 4
@@ -146,11 +146,11 @@ func (packet *RTMPPacket) CreateChunks() []byte {
 	}
 
 	for payloadSize > 0 {
-		if payloadSize > RTMP_CHUNK_SIZE {
-			copy(chunks[chunksOffset:], packet.payload[payloadOffset:payloadOffset+RTMP_CHUNK_SIZE])
-			payloadSize -= RTMP_CHUNK_SIZE
-			chunksOffset += RTMP_CHUNK_SIZE
-			payloadOffset += RTMP_CHUNK_SIZE
+		if payloadSize > outChunkSize {
+			copy(chunks[chunksOffset:], packet.payload[payloadOffset:payloadOffset+outChunkSize])
+			payloadSize -= outChunkSize
+			chunksOffset += outChunkSize
+			payloadOffset += outChunkSize
 			copy(chunks[chunksOffset:], chunkBasicHeader3[:])
 			chunksOffset += len(chunkBasicHeader3)
 			if useExtendedTimestamp {

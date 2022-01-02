@@ -28,8 +28,10 @@ type RTMPSession struct {
 	mutex         *sync.Mutex
 	publish_mutex *sync.Mutex
 
-	id          uint64
-	inChunkSize uint32
+	id uint64
+
+	inChunkSize  uint32
+	outChunkSize uint32
 
 	inPackets map[uint32]*RTMPPacket
 
@@ -79,6 +81,7 @@ func CreateRTMPSession(server *RTMPServer, id uint64, ip string, c net.Conn) RTM
 		publish_mutex: &sync.Mutex{},
 		id:            id,
 		inChunkSize:   RTMP_CHUNK_SIZE,
+		outChunkSize:  server.getOutChunkSize(),
 		inPackets:     make(map[uint32]*RTMPPacket),
 		ackSize:       0,
 		inAckSize:     0,
@@ -489,7 +492,7 @@ func (s *RTMPSession) HandleConnect(cmd *RTMPCommand) bool {
 
 	s.SendWindowACK(5000000)
 	s.SetPeerBandwidth(5000000, 2)
-	s.SetChunkSize(RTMP_CHUNK_SIZE)
+	s.SetChunkSize(s.outChunkSize)
 	s.RespondConnect(transId, !cmd.GetArg("cmdObj").GetProperty("objectEncoding").IsUndefined())
 
 	return true
