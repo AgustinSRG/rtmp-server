@@ -529,19 +529,16 @@ func (s *RTMPSession) HandlePublish(cmd *RTMPCommand, packet *RTMPPacket) bool {
 		return false
 	}
 
-	// Callback limit (TODO)
-
-	LogRequest(s.id, s.ip, "PRE-PUBLISH")
+	LogRequest(s.id, s.ip, "PUBLISH ("+strconv.Itoa(int(s.publishStreamId))+") '"+s.channel+"'")
 
 	// Callback
 	if !s.SendStartCallback() {
-		LogRequest(s.id, s.ip, "PUBLISH-INVALID-KEY")
+		LogRequest(s.id, s.ip, "Error: Invalid streaming key provided")
 		s.SendStatusMessage(s.publishStreamId, "error", "NetStream.Publish.BadName", "Invalid stream key provided")
 		return false
 	}
 
 	// Set publisher
-	LogRequest(s.id, s.ip, "PUBLISH #"+strconv.Itoa(int(s.publishStreamId)))
 	s.isPublishing = true
 	s.server.SetPublisher(s.channel, s.key, s.stream_id, s)
 
@@ -574,7 +571,7 @@ func (s *RTMPSession) HandlePlay(cmd *RTMPCommand, packet *RTMPPacket) bool {
 		return false
 	}
 
-	LogRequest(s.id, s.ip, "PLAY")
+	LogRequest(s.id, s.ip, "PLAY ("+strconv.Itoa(int(s.playStreamId))+") '"+s.channel+"'")
 
 	s.RespondPlay()
 
@@ -582,7 +579,7 @@ func (s *RTMPSession) HandlePlay(cmd *RTMPCommand, packet *RTMPPacket) bool {
 	idle, e := s.server.AddPlayer(s.channel, s.key, s)
 
 	if e != nil {
-		LogRequest(s.id, s.ip, "PLAY-INVALID-KEY")
+		LogRequest(s.id, s.ip, "Error: Invalid streaming key provided")
 		s.SendStatusMessage(s.playStreamId, "error", "NetStream.Play.BadName", "Invalid stream key provided")
 		return false // Invalid key
 	}
@@ -593,7 +590,7 @@ func (s *RTMPSession) HandlePlay(cmd *RTMPCommand, packet *RTMPPacket) bool {
 			publisher.StartPlayer(s)
 		}
 	} else {
-		LogRequest(s.id, s.ip, "PLAY IDLE")
+		LogRequest(s.id, s.ip, "PLAY IDLE '"+s.channel+"'")
 	}
 
 	return true
@@ -609,12 +606,16 @@ func (s *RTMPSession) HandlePause(cmd *RTMPCommand) bool {
 	if s.isPause {
 		s.SendStreamStatus(STREAM_EOF, s.playStreamId)
 		s.SendStatusMessage(s.playStreamId, "status", "NetStream.Pause.Notify", "Paused live")
+		LogRequest(s.id, s.ip, "PAUSE '"+s.channel+"'")
 	} else {
 		s.SendStreamStatus(STREAM_BEGIN, s.playStreamId)
 		publisher := s.server.GetPublisher(s.channel)
 
 		if publisher != nil {
+			LogRequest(s.id, s.ip, "RESUME '"+s.channel+"'")
 			publisher.ResumePlayer(s)
+		} else {
+			LogRequest(s.id, s.ip, "PLAY IDLE '"+s.channel+"'")
 		}
 
 		s.SendStatusMessage(s.playStreamId, "status", "NetStream.Unpause.Notify", "Unpaused live")
@@ -628,7 +629,7 @@ func (s *RTMPSession) HandleDeleteStream(cmd *RTMPCommand) bool {
 
 	if streamId == s.playStreamId {
 		// Close play
-		LogDebugSession(s.id, s.ip, "Close play stream")
+		LogRequest(s.id, s.ip, "PLAY STOP '"+s.channel+"'")
 
 		s.server.RemovePlayer(s.channel, s.key, s)
 

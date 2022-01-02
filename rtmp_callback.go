@@ -21,6 +21,8 @@ func (s *RTMPSession) SendStartCallback() bool {
 		return true // No callback
 	}
 
+	LogDebugSession(s.id, s.ip, "POST "+CALLBACK_URL+" | Event: START | Channel: "+s.channel)
+
 	exp := time.Now().Unix() + JWT_EXPIRATION_TIME_SECONDS
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"sub":       "rtmp_event",
@@ -61,6 +63,7 @@ func (s *RTMPSession) SendStartCallback() bool {
 	}
 
 	s.stream_id = res.Header.Get("stream-id")
+	LogDebugSession(s.id, s.ip, "Stream ID: "+s.stream_id)
 
 	return true
 }
@@ -69,6 +72,8 @@ func (s *RTMPSession) SendStopCallback() bool {
 	if CALLBACK_URL == "" {
 		return true // No callback
 	}
+
+	LogDebugSession(s.id, s.ip, "POST "+CALLBACK_URL+" | Event: STOP | Channel: "+s.channel)
 
 	exp := time.Now().Unix() + JWT_EXPIRATION_TIME_SECONDS
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{

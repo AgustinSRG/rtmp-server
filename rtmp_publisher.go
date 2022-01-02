@@ -18,6 +18,8 @@ func (s *RTMPSession) StartIdlePlayers() {
 		if subtle.ConstantTimeCompare([]byte(s.key), []byte(idlePlayers[i].key)) == 1 {
 			player := idlePlayers[i]
 
+			LogRequest(player.id, player.ip, "PLAY START")
+
 			player.SendMetadata(s.metaData, 0)
 			player.SendAudioCodecHeader(s.audioCodec, s.aacSequenceHeader, 0)
 			player.SendVideoCodecHeader(s.videoCodec, s.avcSequenceHeader, 0)
@@ -49,8 +51,11 @@ func (s *RTMPSession) StartPlayer(player *RTMPSession) {
 	if !s.isPublishing {
 		player.isPlaying = false
 		player.isIdling = true
+		LogRequest(player.id, player.ip, "PLAY IDLE '"+player.channel+"'")
 		return
 	}
+
+	LogRequest(player.id, player.ip, "PLAY START '"+player.channel+"'")
 
 	player.SendMetadata(s.metaData, 0)
 	player.SendAudioCodecHeader(s.audioCodec, s.aacSequenceHeader, 0)
@@ -84,7 +89,7 @@ func (s *RTMPSession) EndPublish(isClose bool) {
 
 	if s.isPublishing {
 
-		LogDebugSession(s.id, s.ip, "End publish")
+		LogRequest(s.id, s.ip, "PUBLISH END '"+s.channel+"'")
 
 		if !isClose {
 			s.SendStatusMessage(s.publishStreamId, "status", "NetStream.Unpublish.Success", s.GetStreamPath()+" is now unpublished.")
@@ -95,6 +100,7 @@ func (s *RTMPSession) EndPublish(isClose bool) {
 		for i := 0; i < len(players); i++ {
 			players[i].isIdling = true
 			players[i].isPlaying = false
+			LogRequest(players[i].id, players[i].ip, "PLAY IDLE '"+players[i].channel+"'")
 			players[i].SendStatusMessage(players[i].playStreamId, "status", "NetStream.Play.UnpublishNotify", "stream is now unpublished.")
 			players[i].SendStreamStatus(STREAM_EOF, players[i].playStreamId)
 		}
@@ -104,6 +110,13 @@ func (s *RTMPSession) EndPublish(isClose bool) {
 		s.rtmpGopcache = list.New()
 
 		s.isPublishing = false
+
+		// Send event
+		if s.SendStopCallback() {
+			LogDebugSession(s.id, s.ip, "Stop event sent")
+		} else {
+			LogDebugSession(s.id, s.ip, "Could not send stop event")
+		}
 	}
 }
 

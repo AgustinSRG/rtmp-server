@@ -108,5 +108,6 @@ Here is a list with more options you can configure:
 | LOG_REQUESTS | Set to `YES` or `NO`. By default is `YES` |
 | LOG_DEBUG | Set to `YES` or `NO`. By default is `NO` |
 | ID_MAX_LENGTH | Max length for `CHANNEL` and `KEY`. By default is 128 characters |
-| MAX_IP_CONCURRENT_REQUESTS | Max number of concurrent requests to accept from a single IP. By default is 4. |
+| MAX_IP_CONCURRENT_CONNECTIONS | Max number of concurrent connections to accept from a single IP. By default is 4. |
+| CONCURRENT_LIMIT_WHITELIST | List of IP ranges not affected by the max number of concurrent connections limit. Split by commas. Example: `127.0.0.1,10.0.0.0/8` |
 

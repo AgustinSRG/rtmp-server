@@ -9,8 +9,11 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
+
+	"github.com/netdata/go.d.plugin/pkg/iprange"
 )
 
 type RTMPChannel struct {
@@ -28,6 +31,9 @@ type RTMPServer struct {
 	mutex           *sync.Mutex
 	sessions        map[uint64]*RTMPSession
 	channels        map[string]*RTMPChannel
+	ip_count        map[string]uint32
+	ip_limit        uint32
+	ip_mutex        *sync.Mutex
 	next_session_id uint64
 	closed          bool
 }
@@ -37,10 +43,21 @@ func CreateRTMPServer() *RTMPServer {
 		listener:        nil,
 		secureListener:  nil,
 		mutex:           &sync.Mutex{},
+		ip_mutex:        &sync.Mutex{},
 		sessions:        make(map[uint64]*RTMPSession),
 		channels:        make(map[string]*RTMPChannel),
 		next_session_id: 1,
 		closed:          false,
+		ip_count:        make(map[string]uint32),
+		ip_limit:        4,
+	}
+
+	custom_ip_limit := os.Getenv("MAX_IP_CONCURRENT_CONNECTIONS")
+	if custom_ip_limit != "" {
+		cil, e := strconv.Atoi(custom_ip_limit)
+		if e != nil {
+			server.ip_limit = uint32(cil)
+		}
 	}
 
 	bind_addr := os.Getenv("BIND_ADDRESS")
@@ -101,6 +118,65 @@ func CreateRTMPServer() *RTMPServer {
 	}
 
 	return &server
+}
+
+func (server *RTMPServer) AddIP(ip string) bool {
+	server.ip_mutex.Lock()
+	defer server.ip_mutex.Unlock()
+
+	c := server.ip_count[ip]
+
+	if c >= server.ip_limit {
+		return false
+	}
+
+	server.ip_count[ip] = c + 1
+
+	return true
+}
+
+func (server *RTMPServer) isIPExempted(ipStr string) bool {
+	r := os.Getenv("CONCURRENT_LIMIT_WHITELIST")
+
+	if r == "" {
+		return false
+	}
+
+	if r == "*" {
+		return true
+	}
+
+	ip := net.ParseIP(ipStr)
+
+	parts := strings.Split(r, ",")
+
+	for i := 0; i < len(parts); i++ {
+		rang, e := iprange.ParseRange(parts[i])
+
+		if e != nil {
+			LogError(e)
+			continue
+		}
+
+		if rang.Contains(ip) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (server *RTMPServer) RemoveIP(ip string) {
+	server.ip_mutex.Lock()
+	defer server.ip_mutex.Unlock()
+
+	c := server.ip_count[ip]
+
+	if c <= 1 {
+		delete(server.ip_count, ip)
+	} else {
+		server.ip_count[ip] = c - 1
+	}
 }
 
 func (server *RTMPServer) NextSessionID() uint64 {
@@ -311,6 +387,15 @@ func (server *RTMPServer) AcceptConnections(listener net.Listener, wg *sync.Wait
 		} else {
 			ip = c.RemoteAddr().String()
 		}
+
+		if !server.isIPExempted(ip) {
+			if !server.AddIP(ip) {
+				c.Close()
+				LogRequest(id, ip, "Connection rejected: Too many requests")
+				continue
+			}
+		}
+
 		LogRequest(id, ip, "Connection accepted!")
 		go server.HandleConnection(id, ip, c)
 	}
@@ -370,6 +455,7 @@ func (server *RTMPServer) HandleConnection(id uint64, ip string, c net.Conn) {
 		s.OnClose()
 		c.Close()
 		server.RemoveSession(id)
+		server.RemoveIP(ip)
 		LogRequest(id, ip, "Connection closed!")
 	}()
 
