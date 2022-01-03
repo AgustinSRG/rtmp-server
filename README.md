@@ -113,4 +113,5 @@ Here is a list with more options you can configure:
 | ID_MAX_LENGTH | Max length for `CHANNEL` and `KEY`. By default is 128 characters |
 | MAX_IP_CONCURRENT_CONNECTIONS | Max number of concurrent connections to accept from a single IP. By default is 4. |
 | CONCURRENT_LIMIT_WHITELIST | List of IP ranges not affected by the max number of concurrent connections limit. Split by commas. Example: `127.0.0.1,10.0.0.0/8` |
+| CUSTOM_JWT_SUBJECT | Custom subject to use for tokens sent to the callback URL |
 

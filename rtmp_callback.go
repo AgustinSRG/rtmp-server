@@ -23,6 +23,12 @@ func (s *RTMPSession) SendStartCallback() bool {
 
 	LogDebugSession(s.id, s.ip, "POST "+CALLBACK_URL+" | Event: START | Channel: "+s.channel)
 
+	var subject = os.Getenv("CUSTOM_JWT_SUBJECT")
+
+	if subject == "" {
+		subject = "rtmp_event"
+	}
+
 	exp := time.Now().Unix() + JWT_EXPIRATION_TIME_SECONDS
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"sub":       "rtmp_event",
