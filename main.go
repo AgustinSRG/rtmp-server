@@ -5,6 +5,8 @@ func main() {
 
 	server := CreateRTMPServer()
 
+	go setupRedisCommandReceiver(server)
+
 	if server != nil {
 		server.Start()
 	}
