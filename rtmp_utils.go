@@ -6,6 +6,7 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"strings"
 )
 
 /* Constants */
@@ -76,8 +77,6 @@ const STREAM_EOF = 0x01
 const STREAM_DRY = 0x02
 const STREAM_EMPTY = 0x1f
 const STREAM_READY = 0x20
-
-const RTMP_GOP_CACHE_SIZE = 100
 
 var rtmpCmdCode = map[string][]string{
 	"_result":         {"transId", "cmdObj", "info"},
@@ -271,4 +270,21 @@ func validateStreamIDString(str string) bool {
 	}
 
 	return m
+}
+
+func getRTMPParamsSimple(str string) map[string]string {
+	result := make(map[string]string)
+
+	if len(str) > 0 {
+		parts := strings.Split(str, "&")
+
+		for i := 0; i < len(parts); i++ {
+			keyVal := strings.Split(parts[i], "=")
+			if len(keyVal) == 2 {
+				result[keyVal[0]] = result[keyVal[1]]
+			}
+		}
+	}
+
+	return result
 }

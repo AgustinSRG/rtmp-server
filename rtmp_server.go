@@ -26,6 +26,7 @@ type RTMPChannel struct {
 }
 
 type RTMPServer struct {
+	port            int
 	listener        net.Listener
 	secureListener  net.Listener
 	mutex           *sync.Mutex
@@ -35,6 +36,7 @@ type RTMPServer struct {
 	ip_limit        uint32
 	ip_mutex        *sync.Mutex
 	next_session_id uint64
+	gopCacheLimit   int64
 	closed          bool
 }
 
@@ -50,6 +52,7 @@ func CreateRTMPServer() *RTMPServer {
 		closed:          false,
 		ip_count:        make(map[string]uint32),
 		ip_limit:        4,
+		gopCacheLimit:   256 * 1024 * 1024,
 	}
 
 	custom_ip_limit := os.Getenv("MAX_IP_CONCURRENT_CONNECTIONS")
@@ -57,6 +60,14 @@ func CreateRTMPServer() *RTMPServer {
 		cil, e := strconv.Atoi(custom_ip_limit)
 		if e != nil {
 			server.ip_limit = uint32(cil)
+		}
+	}
+
+	custom_gop_limit := os.Getenv("GOP_CACHE_SIZE_MB")
+	if custom_gop_limit != "" {
+		cgl, e := strconv.Atoi(custom_gop_limit)
+		if e != nil {
+			server.gopCacheLimit = int64(cgl) * 1024 * 1024
 		}
 	}
 
@@ -72,6 +83,7 @@ func CreateRTMPServer() *RTMPServer {
 			tcp_port = tcpp
 		}
 	}
+	server.port = tcp_port
 
 	lTCP, errTCP := net.Listen("tcp", bind_addr+":"+strconv.Itoa(tcp_port))
 	if errTCP != nil {
@@ -213,7 +225,7 @@ func (server *RTMPServer) GetPublisher(channel string) *RTMPSession {
 	server.mutex.Lock()
 	defer server.mutex.Unlock()
 
-	if server.channels[channel] != nil {
+	if server.channels[channel] == nil {
 		return nil
 	}
 

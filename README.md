@@ -114,4 +114,4 @@ Here is a list with more options you can configure:
 | MAX_IP_CONCURRENT_CONNECTIONS | Max number of concurrent connections to accept from a single IP. By default is 4. |
 | CONCURRENT_LIMIT_WHITELIST | List of IP ranges not affected by the max number of concurrent connections limit. Split by commas. Example: `127.0.0.1,10.0.0.0/8` |
 | CUSTOM_JWT_SUBJECT | Custom subject to use for tokens sent to the callback URL |
-
+| GOP_CACHE_SIZE_MB | Size limit in megabytes of packet cache. By default is `256`. Set it to `0` to disable cache |

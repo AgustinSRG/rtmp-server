@@ -28,6 +28,8 @@ type RTMPPacket struct {
 	handled  bool
 }
 
+const RTMP_PACKET_BASE_SIZE = 65
+
 func createBlankRTMPPacket() RTMPPacket {
 	return RTMPPacket{
 		header: RTMPPacketHeader{

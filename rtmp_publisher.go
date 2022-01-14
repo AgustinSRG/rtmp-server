@@ -24,7 +24,7 @@ func (s *RTMPSession) StartIdlePlayers() {
 			player.SendAudioCodecHeader(s.audioCodec, s.aacSequenceHeader, 0)
 			player.SendVideoCodecHeader(s.videoCodec, s.avcSequenceHeader, 0)
 
-			if s.rtmpGopcache.Len() > 0 {
+			if !player.gopPlayNo && s.rtmpGopcache.Len() > 0 {
 				for t := s.rtmpGopcache.Front(); t != nil; t = t.Next() {
 					chunks := t.Value
 					switch x := chunks.(type) {
@@ -36,6 +36,12 @@ func (s *RTMPSession) StartIdlePlayers() {
 
 			player.isPlaying = true
 			player.isIdling = false
+
+			if player.gopPlayClear {
+				s.rtmpGopcache = list.New()
+				s.gopCacheSize = 0
+				s.gopCacheDisabled = true
+			}
 		} else {
 			LogRequest(idlePlayers[i].id, idlePlayers[i].ip, "Error: Invalid stream key provided")
 			idlePlayers[i].SendStatusMessage(s.playStreamId, "error", "NetStream.Play.BadName", "Invalid stream key provided")
@@ -62,7 +68,7 @@ func (s *RTMPSession) StartPlayer(player *RTMPSession) {
 	player.SendAudioCodecHeader(s.audioCodec, s.aacSequenceHeader, 0)
 	player.SendVideoCodecHeader(s.videoCodec, s.avcSequenceHeader, 0)
 
-	if s.rtmpGopcache.Len() > 0 {
+	if !player.gopPlayNo && s.rtmpGopcache.Len() > 0 {
 		for t := s.rtmpGopcache.Front(); t != nil; t = t.Next() {
 			chunks := t.Value
 			switch x := chunks.(type) {
@@ -74,6 +80,12 @@ func (s *RTMPSession) StartPlayer(player *RTMPSession) {
 
 	player.isPlaying = true
 	player.isIdling = false
+
+	if player.gopPlayClear {
+		s.rtmpGopcache = list.New()
+		s.gopCacheSize = 0
+		s.gopCacheDisabled = true
+	}
 }
 
 func (s *RTMPSession) ResumePlayer(player *RTMPSession) {

@@ -64,7 +64,12 @@ type RTMPSession struct {
 	avcSequenceHeader []byte
 	clock             int64
 
-	rtmpGopcache *list.List
+	rtmpGopcache     *list.List
+	gopCacheSize     int64
+	gopCacheLimit    int64
+	gopCacheDisabled bool
+	gopPlayNo        bool
+	gopPlayClear     bool
 
 	streams uint32
 
@@ -115,7 +120,12 @@ func CreateRTMPSession(server *RTMPServer, id uint64, ip string, c net.Conn) RTM
 		avcSequenceHeader: make([]byte, 0),
 		clock:             0,
 
-		rtmpGopcache: list.New(),
+		rtmpGopcache:     list.New(),
+		gopCacheSize:     0,
+		gopCacheLimit:    server.gopCacheLimit,
+		gopCacheDisabled: false,
+		gopPlayNo:        false,
+		gopPlayClear:     false,
 
 		channel:   "",
 		key:       "",
@@ -555,6 +565,12 @@ func (s *RTMPSession) HandlePlay(cmd *RTMPCommand, packet *RTMPPacket) bool {
 	sKeyPathSplit := strings.Split(sKeyPath, "?")
 	s.key = sKeyPathSplit[0]
 
+	if len(sKeyPathSplit) > 1 {
+		playParams := getRTMPParamsSimple(sKeyPathSplit[1])
+		s.gopPlayNo = (playParams["cache"] == "no")
+		s.gopPlayClear = (playParams["cache"] == "clear")
+	}
+
 	if s.key == "" || !s.isConnected {
 		return true
 	}
@@ -726,11 +742,19 @@ func (s *RTMPSession) HandleAudioPacket(packet *RTMPPacket) bool {
 	cachePacket.header.length = uint32(len(cachePacket.payload))
 	cachePacket.header.timestamp = s.clock
 
-	if !isHeader {
+	if !isHeader && !s.gopCacheDisabled {
 		s.rtmpGopcache.PushBack(&cachePacket)
+		s.gopCacheSize += int64(cachePacket.header.length) + RTMP_PACKET_BASE_SIZE
 
-		if s.rtmpGopcache.Len() > RTMP_GOP_CACHE_SIZE {
-			s.rtmpGopcache.Remove(s.rtmpGopcache.Front())
+		for s.gopCacheSize > s.gopCacheLimit {
+			toDelete := s.rtmpGopcache.Front()
+			v := toDelete.Value
+			switch x := v.(type) {
+			case *RTMPPacket:
+				s.gopCacheSize -= int64(x.header.length)
+			}
+			s.rtmpGopcache.Remove(toDelete)
+			s.gopCacheSize -= RTMP_PACKET_BASE_SIZE
 		}
 	}
 
@@ -761,6 +785,7 @@ func (s *RTMPSession) HandleVideoPacket(packet *RTMPPacket) bool {
 	if isHeader {
 		s.avcSequenceHeader = packet.payload
 		s.rtmpGopcache = list.New()
+		s.gopCacheSize = 0
 	}
 
 	if s.videoCodec == 0 {
@@ -776,11 +801,19 @@ func (s *RTMPSession) HandleVideoPacket(packet *RTMPPacket) bool {
 	cachePacket.header.timestamp = s.clock
 
 	// Cache
-	if isHeader {
+	if !isHeader && !s.gopCacheDisabled {
 		s.rtmpGopcache.PushBack(&cachePacket)
+		s.gopCacheSize += int64(cachePacket.header.length) + RTMP_PACKET_BASE_SIZE
 
-		if s.rtmpGopcache.Len() > RTMP_GOP_CACHE_SIZE {
-			s.rtmpGopcache.Remove(s.rtmpGopcache.Front())
+		for s.gopCacheSize > s.gopCacheLimit {
+			toDelete := s.rtmpGopcache.Front()
+			v := toDelete.Value
+			switch x := v.(type) {
+			case *RTMPPacket:
+				s.gopCacheSize -= int64(x.header.length)
+			}
+			s.rtmpGopcache.Remove(toDelete)
+			s.gopCacheSize -= RTMP_PACKET_BASE_SIZE
 		}
 	}
 

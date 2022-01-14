@@ -36,6 +36,7 @@ func (s *RTMPSession) SendStartCallback() bool {
 		"channel":   s.channel,
 		"key":       s.key,
 		"client_ip": s.ip,
+		"rtmp_port": s.server.port,
 		"exp":       exp,
 	})
 
