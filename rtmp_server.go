@@ -408,7 +408,7 @@ func (server *RTMPServer) AcceptConnections(listener net.Listener, wg *sync.Wait
 			}
 		}
 
-		LogRequest(id, ip, "Connection accepted!")
+		LogDebugSession(id, ip, "Connection accepted!")
 		go server.HandleConnection(id, ip, c)
 	}
 }
@@ -468,7 +468,7 @@ func (server *RTMPServer) HandleConnection(id uint64, ip string, c net.Conn) {
 		c.Close()
 		server.RemoveSession(id)
 		server.RemoveIP(ip)
-		LogRequest(id, ip, "Connection closed!")
+		LogDebugSession(id, ip, "Connection closed!")
 	}()
 
 	s.HandleSession()
