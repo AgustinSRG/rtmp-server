@@ -28,7 +28,7 @@ The server will accept RTMP connections with the following schema:
 rtmp://{HOST}/{CHANNEL}/{KEY}
 ```
 
-Note: Both `CHANNEL` and `KEY` are restricted to letters `A-Z`, numbers `0-9`, dashes `-` and undescores `_`.
+Note: Both `CHANNEL` and `KEY` are restricted to letters `a-z`, numbers `0-9`, dashes `-` and undescores `_`.
 
 By default, it will accept any connections. If you need to restrict the access or customize the server in any way, you can use environment variables.
 
@@ -44,7 +44,7 @@ In order to restrict the access and have control over who publishes, the RTMP se
 
 Set the `CALLBACK_URL` environment variable to the remote server that is going to handle those events:
 
- - When an user wants to publish, to validate the atreaming channel and key. (`start`)
+ - When an user wants to publish, to validate the streaming channel and key. (`start`)
  - When a session is closed, meaning the live streaming has ended. (`stop`)
 
 The events are sent as HTTP(S) **POST** requests to the given URL, with empty body, and with a header with name `rtmp-event`, containing the event data encoded as a **Base 64 JWT (JSON Web Token)**, signed using a secret you must provide using the `JWT_SECRET` environment variable.
