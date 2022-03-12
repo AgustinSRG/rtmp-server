@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"os"
 	"strings"
@@ -50,12 +51,24 @@ func setupRedisCommandReceiver(server *RTMPServer) {
 		redisChannel = "rtmp_commands"
 	}
 
+	redisTLS := os.Getenv("REDIS_TLS")
+
 	ctx := context.Background()
 
-	redisClient := redis.NewClient(&redis.Options{
-		Addr:     redisHost + ":" + redisPort,
-		Password: redisPassword,
-	})
+	var redisClient *redis.Client
+
+	if redisTLS == "YES" {
+		redisClient = redis.NewClient(&redis.Options{
+			Addr:      redisHost + ":" + redisPort,
+			Password:  redisPassword,
+			TLSConfig: &tls.Config{},
+		})
+	} else {
+		redisClient = redis.NewClient(&redis.Options{
+			Addr:     redisHost + ":" + redisPort,
+			Password: redisPassword,
+		})
+	}
 
 	subscriber := redisClient.Subscribe(ctx, redisChannel)
 

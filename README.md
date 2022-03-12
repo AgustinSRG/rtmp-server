@@ -74,6 +74,7 @@ To configure it, set the following variables:
 | REDIS_HOST | Host to connect to Redis Pub/Sub. Default is `127.0.0.1` |
 | REDIS_PASSWORD | Redis authentication password, if required. |
 | REDIS_CHANNEL | Redis channel to listen for commands. By default is `rtmp_commands` |
+| REDIS_TLS | Set it to `YES` in order to use TLS for the connection. |
 
 The commands have the following structure:
 
