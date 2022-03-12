@@ -16,7 +16,7 @@ To compile the code type:
 go build
 ```
 
-Thhe build command will create a binary in the currenct directory, called `rtmp-server`, or `rtmp-server.exe` if you are using Windows.
+The build command will create a binary in the currenct directory, called `rtmp-server`, or `rtmp-server.exe` if you are using Windows.
 
 ## Usage
 
