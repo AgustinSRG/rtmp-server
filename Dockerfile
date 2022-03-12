@@ -21,5 +21,4 @@ EXPOSE 443
 
 # Entry point
 
-CMD ["/root/rtmp-server"]
-
+ENTRYPOINT ["/root/rtmp-server"]
