@@ -4,7 +4,7 @@ This is a RTMP (Real Time Messaging Protocol) server for live streaming broadcas
 
 ## Compilation
 
-In order to install dependencies, type
+In order to install dependencies, type:
 
 ```
 go get github.com/AgustinSRG/rtmp-server
@@ -17,6 +17,16 @@ go build
 ```
 
 The build command will create a binary in the currenct directory, called `rtmp-server`, or `rtmp-server.exe` if you are using Windows.
+
+## Docker image
+
+You can find the docker image for this project available in Docker Hub: [https://hub.docker.com/r/asanrom/rtmp-server](https://hub.docker.com/r/asanrom/rtmp-server)
+
+To pull it type:
+
+```
+docker pull asanrom/rtmp-server
+```
 
 ## Usage
 
