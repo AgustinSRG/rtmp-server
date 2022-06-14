@@ -16,7 +16,7 @@ To compile the code type:
 go build
 ```
 
-The build command will create a binary in the currenct directory, called `rtmp-server`, or `rtmp-server.exe` if you are using Windows.
+The build command will create a binary in the current directory, called `rtmp-server`, or `rtmp-server.exe` if you are using Windows.
 
 ## Docker image
 
@@ -28,9 +28,33 @@ To pull it type:
 docker pull asanrom/rtmp-server
 ```
 
+Example compose file:
+
+```yml
+version: '3.7'
+
+services:
+    rtmp_server:
+        image: asanrom/rtmp-server
+        ports:
+            - '1935:1935'
+            #- '443:443'
+        environment:
+            # Configure it using env vars:
+            - PLAY_ALLOWED_FROM=*
+            - CONCURRENT_LIMIT_WHITELIST=*
+            - REDIS_USE=YES
+            - REDIS_HOST=${REDIS_HOST}
+            - REDIS_CHANNEL=rtmp_commands
+            - RTMP_CHUNK_SIZE=5000
+            - CALLBACK_URL=http://${STREAMING_APP_HOST}/rtmp/callback
+            - JWT_SECRET=${JWT_SECRET}
+            - LOG_MODE=DEFAULT
+```
+
 ## Usage
 
-In order to run the server you have to run the binary. That will run the server in the port `1935`.
+In order to run the server you have to run the binary or the docker container. That will run the server in the port `1935`.
 
 The server will accept RTMP connections with the following schema:
 
@@ -77,14 +101,14 @@ This server supports listening for commands using Redis Pub/Sub.
 
 To configure it, set the following variables:
 
-| Variable Name | Description |
-|---|---|
-| REDIS_USE | Set it to `YES` in order to enable Redis. |
-| REDIS_PORT | Port to connect to Redis Pub/Sub. Default is `6379` |
-| REDIS_HOST | Host to connect to Redis Pub/Sub. Default is `127.0.0.1` |
-| REDIS_PASSWORD | Redis authentication password, if required. |
-| REDIS_CHANNEL | Redis channel to listen for commands. By default is `rtmp_commands` |
-| REDIS_TLS | Set it to `YES` in order to use TLS for the connection. |
+| Variable Name  | Description                                                         |
+| -------------- | ------------------------------------------------------------------- |
+| REDIS_USE      | Set it to `YES` in order to enable Redis.                           |
+| REDIS_PORT     | Port to connect to Redis Pub/Sub. Default is `6379`                 |
+| REDIS_HOST     | Host to connect to Redis Pub/Sub. Default is `127.0.0.1`            |
+| REDIS_PASSWORD | Redis authentication password, if required.                         |
+| REDIS_CHANNEL  | Redis channel to listen for commands. By default is `rtmp_commands` |
+| REDIS_TLS      | Set it to `YES` in order to use TLS for the connection.             |
 
 The commands have the following structure:
 
@@ -105,25 +129,25 @@ These commands are meant to stop a streaming session once started, to enforce ap
 
 If you want to use TLS, you have to set 3 variables in order for it to work:
 
-| Variable Name | Description |
-|---|---|
-| SSL_PORT | RTMPS (RTMP over TLS) listening port. Default is `443` |
-| SSL_CERT | Path to SSL certificate. |
-| SSL_KEY | Path to SSL private key. |
+| Variable Name | Description                                            |
+| ------------- | ------------------------------------------------------ |
+| SSL_PORT      | RTMPS (RTMP over TLS) listening port. Default is `443` |
+| SSL_CERT      | Path to SSL certificate.                               |
+| SSL_KEY       | Path to SSL private key.                               |
 
 ### More options
 
 Here is a list with more options you can configure:
 
-| Variable Name | Description |
-|---|---|
-| RTMP_PORT | RTMP listening port. Default is `1935` |
-| BIND_ADDRESS | Bind address for RTMP and RTMPS. By default it binds to all network interfaces. |
-| RTMP_CHUNK_SIZE | RTMP Chunk size in bytes. Default is `128` |
-| LOG_REQUESTS | Set to `YES` or `NO`. By default is `YES` |
-| LOG_DEBUG | Set to `YES` or `NO`. By default is `NO` |
-| ID_MAX_LENGTH | Max length for `CHANNEL` and `KEY`. By default is 128 characters |
-| MAX_IP_CONCURRENT_CONNECTIONS | Max number of concurrent connections to accept from a single IP. By default is 4. |
-| CONCURRENT_LIMIT_WHITELIST | List of IP ranges not affected by the max number of concurrent connections limit. Split by commas. Example: `127.0.0.1,10.0.0.0/8` |
-| CUSTOM_JWT_SUBJECT | Custom subject to use for tokens sent to the callback URL |
-| GOP_CACHE_SIZE_MB | Size limit in megabytes of packet cache. By default is `256`. Set it to `0` to disable cache |
+| Variable Name                 | Description                                                                                                                        |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| RTMP_PORT                     | RTMP listening port. Default is `1935`                                                                                             |
+| BIND_ADDRESS                  | Bind address for RTMP and RTMPS. By default it binds to all network interfaces.                                                    |
+| RTMP_CHUNK_SIZE               | RTMP Chunk size in bytes. Default is `128`                                                                                         |
+| LOG_REQUESTS                  | Set to `YES` or `NO`. By default is `YES`                                                                                          |
+| LOG_DEBUG                     | Set to `YES` or `NO`. By default is `NO`                                                                                           |
+| ID_MAX_LENGTH                 | Max length for `CHANNEL` and `KEY`. By default is 128 characters                                                                   |
+| MAX_IP_CONCURRENT_CONNECTIONS | Max number of concurrent connections to accept from a single IP. By default is 4.                                                  |
+| CONCURRENT_LIMIT_WHITELIST    | List of IP ranges not affected by the max number of concurrent connections limit. Split by commas. Example: `127.0.0.1,10.0.0.0/8` |
+| CUSTOM_JWT_SUBJECT            | Custom subject to use for tokens sent to the callback URL                                                                          |
+| GOP_CACHE_SIZE_MB             | Size limit in megabytes of packet cache. By default is `256`. Set it to `0` to disable cache                                       |
