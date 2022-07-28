@@ -43,13 +43,11 @@ services:
             # Configure it using env vars:
             - PLAY_ALLOWED_FROM=*
             - CONCURRENT_LIMIT_WHITELIST=*
-            - REDIS_USE=YES
-            - REDIS_HOST=${REDIS_HOST}
-            - REDIS_CHANNEL=rtmp_commands
+            - REDIS_USE=NO
             - RTMP_CHUNK_SIZE=5000
-            - CALLBACK_URL=http://${STREAMING_APP_HOST}/rtmp/callback
-            - JWT_SECRET=${JWT_SECRET}
-            - LOG_MODE=DEFAULT
+            - LOG_REQUESTS=YES
+            - LOG_DEBUG=NO
+            - GOP_CACHE_SIZE_MB=0
 ```
 
 ## Usage
