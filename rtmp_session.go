@@ -208,7 +208,7 @@ func (s *RTMPSession) ReadChunk(r *bufio.Reader) bool {
 	startByte, e := r.ReadByte()
 	bytesReadCount++
 	if e != nil {
-		LogDebugSession(s.id, s.ip, "Could not read chunk start byte")
+		LogDebugSession(s.id, s.ip, "Could not read chunk start byte. "+e.Error())
 		return false
 	}
 
