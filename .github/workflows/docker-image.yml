@@ -1,0 +1,32 @@
+name: Docker Image CI
+
+on:
+  release:
+    types: [published]
+
+jobs:
+
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Build the Docker image
+      run: docker build . --file Dockerfile --tag asanrom/rtmp-server:latest
+      
+    - name: Docker Login
+      uses: docker/login-action@v2.1.0
+      with:
+        username: asanrom
+        password: ${{ secrets.DOCKER_TOKEN }}
+        
+    - name: Add version tag to Docker image
+      run: docker tag asanrom/rtmp-server:latest asanrom/rtmp-server:$GITHUB_REF_NAME
+      
+    - name: Push the Docker image (Current Version)
+      run: docker push asanrom/rtmp-server:$GITHUB_REF_NAME
+        
+    - name: Push the Docker image (Latest)
+      run: docker push asanrom/rtmp-server:latest
+    
