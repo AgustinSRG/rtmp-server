@@ -126,9 +126,13 @@ func detectClientMessageFormat(clientsig []byte) uint32 {
 }
 
 func generateS1(messageFormat uint32) []byte {
-	var randomBytes []byte
-	randomBytes = make([]byte, RTMP_SIG_SIZE-8)
-	rand.Read(randomBytes)
+	var randomBytes = make([]byte, RTMP_SIG_SIZE-8)
+	_, err := rand.Read(randomBytes)
+
+	if err != nil {
+		// This should never happen
+		panic(err)
+	}
 
 	var handshakeBytes []byte
 	var msg []byte
@@ -172,9 +176,7 @@ func generateS1(messageFormat uint32) []byte {
 		msg = msg[0:forcedMsgLen]
 	}
 
-	var h []byte
-
-	h = calcHmac(msg, []byte(GenuineFMSConst))
+	var h = calcHmac(msg, []byte(GenuineFMSConst))
 
 	for j := uint32(0); j < 32; j++ {
 		handshakeBytes[serverDigestOffset+j] = h[j]
@@ -184,9 +186,13 @@ func generateS1(messageFormat uint32) []byte {
 }
 
 func generateS2(messageFormat uint32, clientsig []byte) []byte {
-	var randomBytes []byte
-	randomBytes = make([]byte, RTMP_SIG_SIZE-32)
-	rand.Read(randomBytes)
+	var randomBytes = make([]byte, RTMP_SIG_SIZE-32)
+	_, err := rand.Read(randomBytes)
+
+	if err != nil {
+		// This should never happen
+		panic(err)
+	}
 
 	var challengeKeyOffset uint32
 
@@ -196,9 +202,7 @@ func generateS2(messageFormat uint32, clientsig []byte) []byte {
 		challengeKeyOffset = GetServerGenuineConstDigestOffset(clientsig[772:776])
 	}
 
-	var challengeKey []byte
-
-	challengeKey = clientsig[challengeKeyOffset:(challengeKeyOffset + 32)]
+	var challengeKey = clientsig[challengeKeyOffset:(challengeKeyOffset + 32)]
 
 	var h []byte
 	var signature []byte

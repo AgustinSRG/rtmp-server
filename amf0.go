@@ -279,13 +279,6 @@ func amf0EncodeString(str string) []byte {
 	return append(l, b...)
 }
 
-func amf0EncodeLongString(str string) []byte {
-	b := []byte(str)
-	l := make([]byte, 4)
-	binary.BigEndian.PutUint32(l, uint32(len(b)))
-	return append(l, b...)
-}
-
 func amf0EncodeObject(o map[string]*AMF0Value) []byte {
 	var r []byte
 	r = make([]byte, 0)
@@ -315,8 +308,7 @@ func amf0EncodeObject(o map[string]*AMF0Value) []byte {
 
 func amf0EncodeArray(o map[string]*AMF0Value) []byte {
 	// Length
-	var r []byte
-	r = make([]byte, 4)
+	var r = make([]byte, 4)
 	binary.BigEndian.PutUint32(r, uint32(len(o)))
 
 	return append(r, amf0EncodeObject(o)...)
@@ -342,8 +334,7 @@ func amf0EncodeRef(index uint16) []byte {
 }
 
 func amf0EncodeTypedObject(className string, o map[string]*AMF0Value) []byte {
-	var r []byte
-	r = amf0EncodeString(className)
+	var r = amf0EncodeString(className)
 	return append(r, amf0EncodeObject(o)...)
 }
 

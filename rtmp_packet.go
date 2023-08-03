@@ -58,7 +58,7 @@ func rtmpChunkBasicHeaderCreate(fmt uint32, cid uint32) []byte {
 		out[2] = byte(cid-64>>8) & 0xff
 	} else if cid >= 64 {
 		out = make([]byte, 2)
-		out[0] = byte(fmt<<6) | 0
+		out[0] = byte(fmt << 6)
 		out[1] = byte(cid-64) & 0xff
 	} else {
 		out = make([]byte, 1)

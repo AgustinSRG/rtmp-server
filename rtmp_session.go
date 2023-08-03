@@ -137,7 +137,7 @@ func (s *RTMPSession) SendSync(b []byte) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	s.conn.Write(b)
+	s.conn.Write(b) //nolint:errcheck
 }
 
 func (s *RTMPSession) Kill() {
@@ -154,7 +154,10 @@ func (s *RTMPSession) GetStreamPath() string {
 func (s *RTMPSession) HandleSession() {
 	r := bufio.NewReader(s.conn)
 
-	s.conn.SetReadDeadline(time.Now().Add(RTMP_PING_TIMEOUT * time.Millisecond))
+	e := s.conn.SetReadDeadline(time.Now().Add(RTMP_PING_TIMEOUT * time.Millisecond))
+	if e != nil {
+		return
+	}
 
 	// Handshake
 
@@ -169,7 +172,11 @@ func (s *RTMPSession) HandleSession() {
 	}
 
 	handshakeBytes := make([]byte, RTMP_HANDSHAKE_SIZE)
-	s.conn.SetReadDeadline(time.Now().Add(RTMP_PING_TIMEOUT * time.Millisecond))
+	e = s.conn.SetReadDeadline(time.Now().Add(RTMP_PING_TIMEOUT * time.Millisecond))
+	if e != nil {
+		LogDebugSession(s.id, s.ip, "Could not set deadline: "+e.Error())
+		return
+	}
 	n, e := io.ReadFull(r, handshakeBytes)
 	if e != nil || n != RTMP_HANDSHAKE_SIZE {
 		LogDebugSession(s.id, s.ip, "Invalid handshake received")
@@ -184,10 +191,14 @@ func (s *RTMPSession) HandleSession() {
 	}
 
 	s1Copy := make([]byte, RTMP_HANDSHAKE_SIZE)
-	s.conn.SetReadDeadline(time.Now().Add(RTMP_PING_TIMEOUT * time.Millisecond))
+	e = s.conn.SetReadDeadline(time.Now().Add(RTMP_PING_TIMEOUT * time.Millisecond))
+	if e != nil {
+		LogDebugSession(s.id, s.ip, "Could not set deadline: "+e.Error())
+		return
+	}
 	n, e = io.ReadFull(r, s1Copy)
 	if e != nil || n != RTMP_HANDSHAKE_SIZE {
-		LogDebugSession(s.id, s.ip, "Invalid hanshake response received")
+		LogDebugSession(s.id, s.ip, "Invalid handshake response received")
 		return
 	}
 
@@ -204,7 +215,11 @@ func (s *RTMPSession) ReadChunk(r *bufio.Reader) bool {
 	bytesReadCount = 0
 
 	// Start byte
-	s.conn.SetReadDeadline(time.Now().Add(RTMP_PING_TIMEOUT * time.Millisecond))
+	e := s.conn.SetReadDeadline(time.Now().Add(RTMP_PING_TIMEOUT * time.Millisecond))
+	if e != nil {
+		LogDebugSession(s.id, s.ip, "Could not set deadline: "+e.Error())
+		return false
+	}
 	startByte, e := r.ReadByte()
 	bytesReadCount++
 	if e != nil {
@@ -225,7 +240,11 @@ func (s *RTMPSession) ReadChunk(r *bufio.Reader) bool {
 	}
 
 	for i := 1; i < parserBasicBytes; i++ {
-		s.conn.SetReadDeadline(time.Now().Add(RTMP_PING_TIMEOUT * time.Millisecond))
+		e := s.conn.SetReadDeadline(time.Now().Add(RTMP_PING_TIMEOUT * time.Millisecond))
+		if e != nil {
+			LogDebugSession(s.id, s.ip, "Could not set deadline: "+e.Error())
+			return false
+		}
 		b, e := r.ReadByte()
 		bytesReadCount++
 		if e != nil {
@@ -240,7 +259,11 @@ func (s *RTMPSession) ReadChunk(r *bufio.Reader) bool {
 	size := int(rtmpHeaderSize[header[0]>>6])
 	if size > 0 {
 		headerLeft := make([]byte, size)
-		s.conn.SetReadDeadline(time.Now().Add(RTMP_PING_TIMEOUT * time.Millisecond))
+		e := s.conn.SetReadDeadline(time.Now().Add(RTMP_PING_TIMEOUT * time.Millisecond))
+		if e != nil {
+			LogDebugSession(s.id, s.ip, "Could set deadline: "+e.Error())
+			return false
+		}
 		n, e := io.ReadFull(r, headerLeft)
 		bytesReadCount += uint32(size)
 		if e != nil || n != size {
@@ -303,7 +326,7 @@ func (s *RTMPSession) ReadChunk(r *bufio.Reader) bool {
 	// Stream ID
 	if packet.header.fmt == RTMP_CHUNK_TYPE_0 {
 		packet.header.stream_id = binary.LittleEndian.Uint32(header[offset : offset+4])
-		offset += 4
+		// offset += 4
 	}
 
 	if packet.header.packet_type > RTMP_TYPE_METADATA {
@@ -315,7 +338,11 @@ func (s *RTMPSession) ReadChunk(r *bufio.Reader) bool {
 	var extended_timestamp int64
 	if packet.header.timestamp == 0xffffff {
 		tsBytes := make([]byte, 4)
-		s.conn.SetReadDeadline(time.Now().Add(RTMP_PING_TIMEOUT * time.Millisecond))
+		e := s.conn.SetReadDeadline(time.Now().Add(RTMP_PING_TIMEOUT * time.Millisecond))
+		if e != nil {
+			LogDebugSession(s.id, s.ip, "Could not set deadline: "+e.Error())
+			return false
+		}
 		n, e := io.ReadFull(r, tsBytes)
 		bytesReadCount += 4
 		if e != nil || n != 4 {
@@ -350,7 +377,11 @@ func (s *RTMPSession) ReadChunk(r *bufio.Reader) bool {
 	if sizeToRead > 0 {
 		// LogDebugSession(s.id, s.ip, "Reading chunk with size: "+strconv.Itoa(int(sizeToRead))+" of total length = "+strconv.Itoa(int(packet.header.length)))
 		bytesToRead := make([]byte, sizeToRead)
-		s.conn.SetReadDeadline(time.Now().Add(RTMP_PING_TIMEOUT * time.Millisecond))
+		e := s.conn.SetReadDeadline(time.Now().Add(RTMP_PING_TIMEOUT * time.Millisecond))
+		if e != nil {
+			LogDebugSession(s.id, s.ip, "Could not set deadline: "+e.Error())
+			return false
+		}
 		n, e := io.ReadFull(r, bytesToRead)
 		bytesReadCount += sizeToRead
 		if e != nil || uint32(n) != sizeToRead {

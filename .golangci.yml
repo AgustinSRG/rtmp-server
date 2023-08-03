@@ -1,0 +1,6 @@
+# Linter config
+# Run: 'golangci-lint run'
+
+linters-settings:
+  maligned:
+    suggest-new: true
