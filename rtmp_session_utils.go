@@ -8,8 +8,6 @@ import (
 	"os"
 	"strings"
 	"time"
-
-	"github.com/netdata/go.d.plugin/pkg/iprange"
 )
 
 func (s *RTMPSession) SendACK(size uint32) bool {
@@ -387,7 +385,7 @@ func (s *RTMPSession) CanPlay() bool {
 	parts := strings.Split(r, ",")
 
 	for i := 0; i < len(parts); i++ {
-		rang, e := iprange.ParseRange(parts[i])
+		_, rang, e := net.ParseCIDR(parts[i])
 
 		if e != nil {
 			LogError(e)
