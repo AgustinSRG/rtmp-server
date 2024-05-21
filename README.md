@@ -139,7 +139,8 @@ Here is a list with more options you can configure:
 
 | Variable Name                 | Description                                                                                                                        |
 | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| RTMP_PORT                     | RTMP listening port. Default is `1935`                                                                                             |
+| RTMP_HOST                     | RTMP host to add in the JWT as `rtmp_host` in order for the callback handler to know the origin host.                              |
+| RTMP_PORT                     | RTMP listening port. It will be added in the JWT as `rtmp_port`. Default is `1935`.                                                |
 | BIND_ADDRESS                  | Bind address for RTMP and RTMPS. By default it binds to all network interfaces.                                                    |
 | RTMP_CHUNK_SIZE               | RTMP Chunk size in bytes. Default is `128`                                                                                         |
 | LOG_REQUESTS                  | Set to `YES` or `NO`. By default is `YES`                                                                                          |

@@ -24,6 +24,7 @@ type RTMPChannel struct {
 }
 
 type RTMPServer struct {
+	host            string
 	port            int
 	listener        net.Listener
 	secureListener  net.Listener
@@ -40,6 +41,7 @@ type RTMPServer struct {
 
 func CreateRTMPServer() *RTMPServer {
 	server := RTMPServer{
+		host:            os.Getenv("RTMP_HOST"),
 		listener:        nil,
 		secureListener:  nil,
 		mutex:           &sync.Mutex{},
