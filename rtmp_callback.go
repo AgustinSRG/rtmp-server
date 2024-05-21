@@ -13,10 +13,10 @@ import (
 
 const JWT_EXPIRATION_TIME_SECONDS = 120
 
-var JWT_SECRET = os.Getenv("JWT_SECRET")
-var CALLBACK_URL = os.Getenv("CALLBACK_URL")
-
 func (s *RTMPSession) SendStartCallback() bool {
+	JWT_SECRET := os.Getenv("JWT_SECRET")
+	CALLBACK_URL := os.Getenv("CALLBACK_URL")
+
 	if CALLBACK_URL == "" {
 		return true // No callback
 	}
@@ -76,6 +76,9 @@ func (s *RTMPSession) SendStartCallback() bool {
 }
 
 func (s *RTMPSession) SendStopCallback() bool {
+	JWT_SECRET := os.Getenv("JWT_SECRET")
+	CALLBACK_URL := os.Getenv("CALLBACK_URL")
+
 	if CALLBACK_URL == "" {
 		return true // No callback
 	}

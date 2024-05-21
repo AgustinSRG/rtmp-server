@@ -248,9 +248,10 @@ func decodeRTMPData(data []byte) RTMPData {
 }
 
 var ID_MAX_LENGTH = 128
-var idCustomMaxLength = os.Getenv("ID_MAX_LENGTH")
 
 func validateStreamIDString(str string) bool {
+	idCustomMaxLength := os.Getenv("ID_MAX_LENGTH")
+
 	if idCustomMaxLength != "" {
 		var e error
 		ID_MAX_LENGTH, e = strconv.Atoi(idCustomMaxLength)
