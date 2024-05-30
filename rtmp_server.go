@@ -109,7 +109,21 @@ func CreateRTMPServer() *RTMPServer {
 	keyFile := os.Getenv("SSL_KEY")
 
 	if certFile != "" && keyFile != "" {
-		cer, err := tls.LoadX509KeyPair(certFile, keyFile)
+		checkReloadSeconds := 60
+
+		customCheckReloadSeconds := os.Getenv("SSL_CHECK_RELOAD_SECONDS")
+		if customCheckReloadSeconds != "" {
+			n, e := strconv.Atoi(customCheckReloadSeconds)
+			if e == nil {
+				checkReloadSeconds = n
+
+				if checkReloadSeconds < 1 {
+					checkReloadSeconds = 1
+				}
+			}
+		}
+
+		cerLoader, err := NewSslCertificateLoader(certFile, keyFile, checkReloadSeconds)
 		if err != nil {
 			LogError(err)
 			if server.listener != nil {
@@ -118,13 +132,14 @@ func CreateRTMPServer() *RTMPServer {
 			return nil
 		}
 
-		config := &tls.Config{Certificates: []tls.Certificate{cer}}
+		config := &tls.Config{GetCertificate: cerLoader.GetCertificateFunc()}
 		lnSSL, errSSL := tls.Listen("tcp", bind_addr+":"+strconv.Itoa(ssl_port), config)
 		if errSSL != nil {
 			LogError(errSSL)
 			return nil
 		} else {
 			server.secureListener = lnSSL
+			go cerLoader.RunReloadThread()
 			LogInfo("[SSL] Listening on " + bind_addr + ":" + strconv.Itoa(ssl_port))
 		}
 	}

@@ -127,11 +127,12 @@ These commands are meant to stop a streaming session once started, to enforce ap
 
 If you want to use TLS, you have to set 3 variables in order for it to work:
 
-| Variable Name | Description                                            |
-| ------------- | ------------------------------------------------------ |
-| SSL_PORT      | RTMPS (RTMP over TLS) listening port. Default is `443` |
-| SSL_CERT      | Path to SSL certificate.                               |
-| SSL_KEY       | Path to SSL private key.                               |
+| Variable Name            | Description                                                                   |
+| ------------------------ | ----------------------------------------------------------------------------- |
+| SSL_PORT                 | RTMPS (RTMP over TLS) listening port. Default is `443`                        |
+| SSL_CERT                 | Path to SSL certificate.                                                      |
+| SSL_KEY                  | Path to SSL private key.                                                      |
+| SSL_CHECK_RELOAD_SECONDS | Number of seconds to check for changes in the certificates (for auto renewal) |
 
 ### More options
 
