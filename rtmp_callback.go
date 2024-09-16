@@ -3,6 +3,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"time"
 
@@ -67,6 +68,7 @@ func (s *RTMPSession) SendStartCallback() bool {
 	}
 
 	if res.StatusCode != 200 {
+		LogDebugSession(s.id, s.ip, "Callback request ended with status code: "+fmt.Sprint(res.StatusCode))
 		return false
 	}
 
@@ -129,6 +131,7 @@ func (s *RTMPSession) SendStopCallback() bool {
 	}
 
 	if res.StatusCode != 200 {
+		LogDebugSession(s.id, s.ip, "Callback request ended with status code: "+fmt.Sprint(res.StatusCode))
 		return false
 	}
 
