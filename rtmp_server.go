@@ -370,7 +370,7 @@ func (server *RTMPServer) AddPlayer(channel string, key string, s *RTMPSession) 
 		if subtle.ConstantTimeCompare([]byte(key), []byte(server.channels[channel].key)) == 1 {
 			s.isIdling = false
 		} else {
-			return false, errors.New("Invalid key")
+			return false, errors.New("invalid key")
 		}
 	} else {
 		s.isIdling = true

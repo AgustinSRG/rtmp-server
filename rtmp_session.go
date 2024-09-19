@@ -231,9 +231,9 @@ func (s *RTMPSession) ReadChunk(r *bufio.Reader) bool {
 	header = []byte{startByte}
 
 	var parserBasicBytes int
-	if 0 == (startByte & 0x3f) {
+	if (startByte & 0x3f) == 0 {
 		parserBasicBytes = 2
-	} else if 1 == (startByte & 0x3f) {
+	} else if (startByte & 0x3f) == 1 {
 		parserBasicBytes = 3
 	} else {
 		parserBasicBytes = 1

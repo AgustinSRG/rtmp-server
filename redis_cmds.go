@@ -28,7 +28,7 @@ func setupRedisCommandReceiver(server *RTMPServer) {
 			case error:
 				LogError(x)
 			default:
-				LogError(errors.New("Could not connect to Redis"))
+				LogError(errors.New("could not connect to redis"))
 			}
 		}
 		LogWarning("Connection to Redis lost!")
@@ -96,7 +96,7 @@ func parseRedisCommand(server *RTMPServer, cmd string) {
 			case error:
 				LogError(x)
 			default:
-				LogError(errors.New("Parsing error"))
+				LogError(errors.New("parsing error"))
 			}
 		}
 		LogWarning("Could not parse message: " + cmd)
