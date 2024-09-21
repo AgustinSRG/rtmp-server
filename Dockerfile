@@ -1,24 +1,30 @@
-FROM golang:latest
+#################################
+#     RTMP Server Dockerfile    #
+#################################
 
-WORKDIR /root
+# Builder
+FROM golang:latest as builder
 
-# Copy files
+    ## Copy files
+    ADD . /root
 
-ADD . /root
+    ## Compile
+    WORKDIR /root
+    RUN go build -o rtmp-server
 
-# Fetch dependencies
 
-RUN go get github.com/AgustinSRG/rtmp-server
+# Runner
+FROM alpine as runner
 
-# Compile
+    ## Install common libraries
+    RUN apk add gcompat
 
-RUN go build
+    ## Copy binary
+    COPY --from=builder /root/rtmp-server /usr/bin/rtmp-server
 
-# Expose ports
+    # Expose ports
+    EXPOSE 1935
+    EXPOSE 443
 
-EXPOSE 1935
-EXPOSE 443
-
-# Entry point
-
-ENTRYPOINT ["/root/rtmp-server"]
+    # Entry point
+    ENTRYPOINT ["/usr/bin/rtmp-server"]
