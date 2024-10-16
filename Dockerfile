@@ -3,7 +3,7 @@
 #################################
 
 # Builder
-FROM golang:latest as builder
+FROM golang:alpine AS builder
 
     ## Copy files
     ADD . /root
@@ -14,7 +14,7 @@ FROM golang:latest as builder
 
 
 # Runner
-FROM alpine as runner
+FROM alpine AS runner
 
     ## Install common libraries
     RUN apk add gcompat
