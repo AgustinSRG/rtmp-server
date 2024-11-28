@@ -31,23 +31,23 @@ docker pull asanrom/rtmp-server
 Example compose file:
 
 ```yml
-version: '3.7'
+version: "3.7"
 
 services:
-    rtmp_server:
-        image: asanrom/rtmp-server
-        ports:
-            - '1935:1935'
-            #- '443:443'
-        environment:
-            # Configure it using env vars:
-            - PLAY_ALLOWED_FROM=*
-            - CONCURRENT_LIMIT_WHITELIST=*
-            - REDIS_USE=NO
-            - RTMP_CHUNK_SIZE=5000
-            - LOG_REQUESTS=YES
-            - LOG_DEBUG=NO
-            - GOP_CACHE_SIZE_MB=0
+  rtmp_server:
+    image: asanrom/rtmp-server
+    ports:
+      - "1935:1935"
+      #- '443:443'
+    environment:
+      # Configure it using env vars:
+      - PLAY_ALLOWED_FROM=*
+      - CONCURRENT_LIMIT_WHITELIST=*
+      - REDIS_USE=NO
+      - RTMP_CHUNK_SIZE=5000
+      - LOG_REQUESTS=YES
+      - LOG_DEBUG=NO
+      - GOP_CACHE_SIZE_MB=0
 ```
 
 ## Usage
@@ -76,20 +76,21 @@ In order to restrict the access and have control over who publishes, the RTMP se
 
 Set the `CALLBACK_URL` environment variable to the remote server that is going to handle those events:
 
- - When an user wants to publish, to validate the streaming channel and key. (`start`)
- - When a session is closed, meaning the live streaming has ended. (`stop`)
+- When an user wants to publish, to validate the streaming channel and key. (`start`)
+- When a session is closed, meaning the live streaming has ended. (`stop`)
 
 The events are sent as HTTP(S) **POST** requests to the given URL, with empty body, and with a header with name `rtmp-event`, containing the event data encoded as a **Base 64 JWT (JSON Web Token)**, signed using a secret you must provide using the `JWT_SECRET` environment variable.
 
 The JWT is signed using the algorithm `HMAC_256`.
 
 The JWT contains the following fields:
- - Subject (`sub`) is `rtmp_event`.
- - Event name (`event`) can be `start` or `stop`.
- - Channel (`channel`) is the requested channel to publish.
- - Key (`key`) is the given key to publish.
- - Stream ID (`stream_id`) is the unique ID for the stream session, It is undefined for the `start` event, since is not known yet.
- - Client IP (`client_ip`) is the client IP for logging purposes.
+
+- Subject (`sub`) is `rtmp_event`.
+- Event name (`event`) can be `start` or `stop`.
+- Channel (`channel`) is the requested channel to publish.
+- Key (`key`) is the given key to publish.
+- Stream ID (`stream_id`) is the unique ID for the stream session, It is undefined for the `start` event, since is not known yet.
+- Client IP (`client_ip`) is the client IP for logging purposes.
 
 For the `start` event, the event handler server must return with status code **200**, and with a header with name `stream-id`, containing the unique identifier for the RTMP publishing session. If the server does not return with 200, the server will consider the key is invalid and it will close the connection with the client. You can use this to validate streaming keys.
 
@@ -118,21 +119,21 @@ Each command goes in a separate message.
 
 List of commands:
 
- - `kill-session>CHANNEL` - Closes any sessions for that specific channel.
- - `close-stream>CHANNEL|STREAM_ID` - Closes specific connection.
+- `kill-session>CHANNEL` - Closes any sessions for that specific channel.
+- `close-stream>CHANNEL|STREAM_ID` - Closes specific connection.
 
 These commands are meant to stop a streaming session once started, to enforce application-specific limits.
 
 ### TLS
 
-If you want to use TLS, you have to set 3 variables in order for it to work:
+If you want to use TLS, you have to set the following variables in order for it to work:
 
-| Variable Name            | Description                                                                   |
-| ------------------------ | ----------------------------------------------------------------------------- |
-| SSL_PORT                 | RTMPS (RTMP over TLS) listening port. Default is `443`                        |
-| SSL_CERT                 | Path to SSL certificate.                                                      |
-| SSL_KEY                  | Path to SSL private key.                                                      |
-| SSL_CHECK_RELOAD_SECONDS | Number of seconds to check for changes in the certificates (for auto renewal) |
+| Variable Name             | Description                                                                         |
+| ------------------------- | ----------------------------------------------------------------------------------- |
+| SSL_PORT                  | RTMPS (RTMP over TLS) listening port. Default is `443`                              |
+| SSL_CERT                  | Path to SSL certificate (REQUIRED).                                                 |
+| SSL_KEY                   | Path to SSL private key (REQUIRED).                                                 |
+| SSL_CHECK_RELOAD_SECONDS` | Number of seconds to check for changes in the certificate or key (for auto renewal) |
 
 ### More options
 
