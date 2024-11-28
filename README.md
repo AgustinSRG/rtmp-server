@@ -60,13 +60,13 @@ The server will accept RTMP connections with the following schema:
 rtmp://{HOST}/{CHANNEL}/{KEY}
 ```
 
-Note: Both `CHANNEL` and `KEY` are restricted to letters `a-z`, numbers `0-9`, dashes `-` and undescores `_`.
+Note: Both `CHANNEL` and `KEY` are restricted to letters `a-z`, numbers `0-9`, dashes `-` and underscores `_`.
 
 By default, it will accept any connections. If you need to restrict the access or customize the server in any way, you can use environment variables.
 
 ### RTMP play restrict
 
-You probably only want external users to be able to publish to the RTMP server, since spectartors probably receive the stream using other protocol, like HLS or MPEG-Dash.
+You probably only want external users to be able to publish to the RTMP server, since spectators probably receive the stream using other protocol, like HLS or MPEG-Dash.
 
 In order to do that, set the `RTMP_PLAY_WHITELIST` to a list of allowed internet addresses split by commas. Example: `127.0.0.1,10.0.0.0/8`. You can set IPs, or subnets. It supports both IP version 4 and version 6.
 
@@ -128,12 +128,12 @@ These commands are meant to stop a streaming session once started, to enforce ap
 
 If you want to use TLS, you have to set the following variables in order for it to work:
 
-| Variable Name             | Description                                                                         |
-| ------------------------- | ----------------------------------------------------------------------------------- |
-| SSL_PORT                  | RTMPS (RTMP over TLS) listening port. Default is `443`                              |
-| SSL_CERT                  | Path to SSL certificate (REQUIRED).                                                 |
-| SSL_KEY                   | Path to SSL private key (REQUIRED).                                                 |
-| SSL_CHECK_RELOAD_SECONDS` | Number of seconds to check for changes in the certificate or key (for auto renewal) |
+| Variable Name            | Description                                                                         |
+| ------------------------ | ----------------------------------------------------------------------------------- |
+| SSL_PORT                 | RTMPS (RTMP over TLS) listening port. Default is `443`                              |
+| SSL_CERT                 | Path to SSL certificate (REQUIRED).                                                 |
+| SSL_KEY                  | Path to SSL private key (REQUIRED).                                                 |
+| SSL_CHECK_RELOAD_SECONDS | Number of seconds to check for changes in the certificate or key (for auto renewal) |
 
 ### More options
 
