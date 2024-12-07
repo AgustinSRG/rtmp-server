@@ -6,7 +6,7 @@ require (
 	github.com/AgustinSRG/go-tls-certificate-loader v1.0.0
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/joho/godotenv v1.5.1
-	github.com/redis/go-redis/v9 v9.6.1
+	github.com/redis/go-redis/v9 v9.7.0
 )
 
 require (
