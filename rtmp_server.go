@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	tls_certificate_loader "github.com/AgustinSRG/go-tls-certificate-loader"
 )
 
 type RTMPChannel struct {
@@ -123,7 +125,18 @@ func CreateRTMPServer() *RTMPServer {
 			}
 		}
 
-		cerLoader, err := NewSslCertificateLoader(certFile, keyFile, checkReloadSeconds)
+		cerLoader, err := tls_certificate_loader.NewTlsCertificateLoader(tls_certificate_loader.TlsCertificateLoaderConfig{
+			CertificatePath:   certFile,
+			KeyPath:           keyFile,
+			CheckReloadPeriod: time.Duration(checkReloadSeconds) * time.Second,
+			OnReload: func() {
+				LogInfo("Reloaded SSL certificates")
+			},
+			OnError: func(err error) {
+				LogError(err)
+			},
+		})
+
 		if err != nil {
 			LogError(err)
 			if server.listener != nil {
@@ -132,14 +145,18 @@ func CreateRTMPServer() *RTMPServer {
 			return nil
 		}
 
-		config := &tls.Config{GetCertificate: cerLoader.GetCertificateFunc()}
+		config := &tls.Config{
+			GetCertificate: cerLoader.GetCertificate,
+		}
+
 		lnSSL, errSSL := tls.Listen("tcp", bind_addr+":"+strconv.Itoa(ssl_port), config)
+
 		if errSSL != nil {
+			cerLoader.Close()
 			LogError(errSSL)
 			return nil
 		} else {
 			server.secureListener = lnSSL
-			go cerLoader.RunReloadThread()
 			LogInfo("[SSL] Listening on " + bind_addr + ":" + strconv.Itoa(ssl_port))
 		}
 	}
