@@ -124,6 +124,22 @@ List of commands:
 
 These commands are meant to stop a streaming session once started, to enforce application-specific limits.
 
+### Control server
+
+In order to integrate this RTMP server with [tcp-video-streaming](https://github.com/AgustinSRG/tcp-video-streaming)'s control server, set `CONTROL_USE` to `YES`.
+
+Also, configure the following variables:
+
+| Variable Name    | Description                                                                                  |
+| ---------------- | -------------------------------------------------------------------------------------------- |
+| CONTROL_BASE_URL | Websocket URL to connect to the coordinator server. Example: `wss://10.0.0.0:8080/`          |
+| CONTROL_SECRET   | Secret shared between the coordinator server and the RTMP server, in order to authenticate.  |
+| EXTERNAL_IP      | IP address of the RTMP server in order to indicate it to the coordinator server              |
+| EXTERNAL_PORT    | Listening port of the RTMP server in order to indicate it to the coordinator server          |
+| EXTERNAL_SSL     | Set it to `YES` if the rest of components will need to use SSL to connect to the RTMP server |
+
+Note: Enabling the control server will disable the callback request feature, replacing it with requests to the control server instead.
+
 ### TLS
 
 If you want to use TLS, you have to set the following variables in order for it to work:

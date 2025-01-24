@@ -78,6 +78,13 @@ const STREAM_DRY = 0x02
 const STREAM_EMPTY = 0x1f
 const STREAM_READY = 0x20
 
+// RTMP command sent by the client or the server
+type RTMPCommand struct {
+	cmd       string                // Command code
+	arguments map[string]*AMF0Value // Command arguments, see rtmpCmdCode for valid ones for each code
+}
+
+// Command codes
 var rtmpCmdCode = map[string][]string{
 	"_result":         {"transId", "cmdObj", "info"},
 	"_error":          {"transId", "cmdObj", "info", "streamId"},
@@ -104,18 +111,9 @@ var rtmpCmdCode = map[string][]string{
 	"pause":           {"transId", "cmdObj", "pause", "ms"},
 }
 
-var rtmpDataCode = map[string][]string{
-	"@setDataFrame":     {"method", "dataObj"},
-	"onFI":              {"info"},
-	"onMetaData":        {"dataObj"},
-	"|RtmpSampleAccess": {"bool1", "bool2"},
-}
-
-type RTMPCommand struct {
-	cmd       string
-	arguments map[string]*AMF0Value
-}
-
+// Gets an argument
+// argName - Argument name
+// Returns the argument. If not found, it will return an AMF0_TYPE_UNDEFINED
 func (c *RTMPCommand) GetArg(argName string) *AMF0Value {
 	if c.arguments[argName] != nil {
 		return c.arguments[argName]
@@ -125,6 +123,7 @@ func (c *RTMPCommand) GetArg(argName string) *AMF0Value {
 	}
 }
 
+// Encodes the command to string (for debug purposes)
 func (c *RTMPCommand) ToString() string {
 	str := "" + c.cmd + " {\n"
 
@@ -136,6 +135,8 @@ func (c *RTMPCommand) ToString() string {
 	return str
 }
 
+// Encodes the command message for sending to the client
+// Returns the encoded bytes
 func (c *RTMPCommand) Encode() []byte {
 	var buf []byte
 
@@ -158,6 +159,9 @@ func (c *RTMPCommand) Encode() []byte {
 	return buf
 }
 
+// Decodes RTMP command from a byte array
+// data - The bytes
+// Returns the decoded command message
 func decodeRTMPCommand(data []byte) RTMPCommand {
 	c := RTMPCommand{
 		cmd:       "",
@@ -180,11 +184,21 @@ func decodeRTMPCommand(data []byte) RTMPCommand {
 	return c
 }
 
+// Message to send information to the client
 type RTMPData struct {
-	tag       string
-	arguments map[string]*AMF0Value
+	tag       string                // The code
+	arguments map[string]*AMF0Value // The arguments, see rtmpDataCode for valid ones for each tag
 }
 
+// Valid RTMP return data codes
+var rtmpDataCode = map[string][]string{
+	"@setDataFrame":     {"method", "dataObj"},
+	"onFI":              {"info"},
+	"onMetaData":        {"dataObj"},
+	"|RtmpSampleAccess": {"bool1", "bool2"},
+}
+
+// Encodes the data message to string (for debug purposes)
 func (c *RTMPData) ToString() string {
 	str := "" + c.tag + " {\n"
 
@@ -196,6 +210,9 @@ func (c *RTMPData) ToString() string {
 	return str
 }
 
+// Gets an argument
+// argName - Argument name
+// Returns the argument. If not found, it will return an AMF0_TYPE_UNDEFINED
 func (c *RTMPData) GetArg(argName string) *AMF0Value {
 	if c.arguments[argName] != nil {
 		return c.arguments[argName]
@@ -205,6 +222,8 @@ func (c *RTMPData) GetArg(argName string) *AMF0Value {
 	}
 }
 
+// Encodes the data message for sending to the client
+// Returns the encoded bytes
 func (c *RTMPData) Encode() []byte {
 	var buf []byte
 
@@ -225,6 +244,9 @@ func (c *RTMPData) Encode() []byte {
 	return buf
 }
 
+// Decodes RTMP data from a byte array
+// data - The bytes
+// Returns the decoded data message
 func decodeRTMPData(data []byte) RTMPData {
 	c := RTMPData{
 		tag:       "",
@@ -247,9 +269,11 @@ func decodeRTMPData(data []byte) RTMPData {
 	return c
 }
 
-var ID_MAX_LENGTH = 128
-
+// Validates stream ID
+// str - Stream ID
+// Returns true only if valid
 func validateStreamIDString(str string) bool {
+	var ID_MAX_LENGTH = 128
 	idCustomMaxLength := os.Getenv("ID_MAX_LENGTH")
 
 	if idCustomMaxLength != "" {
@@ -273,6 +297,9 @@ func validateStreamIDString(str string) bool {
 	return m
 }
 
+// Extract RTMP params from the query string
+// str - The query string
+// Returns the params as a map
 func getRTMPParamsSimple(str string) map[string]string {
 	result := make(map[string]string)
 

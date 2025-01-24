@@ -9,7 +9,7 @@ import (
 
 	"net/http"
 
-	"github.com/golang-jwt/jwt"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 const JWT_EXPIRATION_TIME_SECONDS = 120
@@ -42,7 +42,7 @@ func (s *RTMPSession) SendStartCallback() bool {
 		"exp":       exp,
 	})
 
-	tokenb64, e := token.SignedString([]byte(JWT_SECRET))
+	tokenB64, e := token.SignedString([]byte(JWT_SECRET))
 
 	if e != nil {
 		LogError(e)
@@ -58,7 +58,7 @@ func (s *RTMPSession) SendStartCallback() bool {
 		return false
 	}
 
-	req.Header.Set("rtmp-event", tokenb64)
+	req.Header.Set("rtmp-event", tokenB64)
 
 	res, e := client.Do(req)
 
@@ -105,7 +105,7 @@ func (s *RTMPSession) SendStopCallback() bool {
 		"exp":       exp,
 	})
 
-	tokenb64, e := token.SignedString([]byte(JWT_SECRET))
+	tokenB64, e := token.SignedString([]byte(JWT_SECRET))
 
 	if e != nil {
 		LogError(e)
@@ -121,7 +121,7 @@ func (s *RTMPSession) SendStopCallback() bool {
 		return false
 	}
 
-	req.Header.Set("rtmp-event", tokenb64)
+	req.Header.Set("rtmp-event", tokenB64)
 
 	res, e := client.Do(req)
 

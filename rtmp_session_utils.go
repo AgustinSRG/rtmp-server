@@ -10,6 +10,8 @@ import (
 	"time"
 )
 
+// Sends an ACK to the client
+// size - Amount of bytes to acknowledge
 func (s *RTMPSession) SendACK(size uint32) bool {
 	b := []byte{
 		0x02, 0x00, 0x00, 0x00,
@@ -25,6 +27,8 @@ func (s *RTMPSession) SendACK(size uint32) bool {
 	return true
 }
 
+// Sends a window ACK message to the client
+// size - Amount of bytes to acknowledge
 func (s *RTMPSession) SendWindowACK(size uint32) bool {
 	b := []byte{
 		0x02, 0x00, 0x00, 0x00,
@@ -40,6 +44,8 @@ func (s *RTMPSession) SendWindowACK(size uint32) bool {
 	return true
 }
 
+// Sends a message to the client to indicate the bandwidth
+// bandwidth - The bandwidth
 func (s *RTMPSession) SetPeerBandwidth(size uint32, t byte) bool {
 	b := []byte{
 		0x02, 0x00, 0x00, 0x00,
@@ -58,6 +64,8 @@ func (s *RTMPSession) SetPeerBandwidth(size uint32, t byte) bool {
 	return true
 }
 
+// Sends a message to the client to indicate the chunk size
+// size - The chunk size
 func (s *RTMPSession) SetChunkSize(size uint32) bool {
 	b := []byte{
 		0x02, 0x00, 0x00, 0x00,
@@ -73,6 +81,9 @@ func (s *RTMPSession) SetChunkSize(size uint32) bool {
 	return true
 }
 
+// Sends a message to the client to indicate the status of a stream
+// st - Status code
+// id - Stream ID
 func (s *RTMPSession) SendStreamStatus(st uint16, id uint32) bool {
 	b := []byte{
 		0x02, 0x00, 0x00, 0x00,
@@ -90,6 +101,7 @@ func (s *RTMPSession) SendStreamStatus(st uint16, id uint32) bool {
 	return true
 }
 
+// Sends a ping request to the client
 func (s *RTMPSession) SendPingRequest() {
 	if !s.isConnected {
 		return
@@ -120,6 +132,9 @@ func (s *RTMPSession) SendPingRequest() {
 	s.SendSync(bytes)
 }
 
+// Sends a INVOKE RTMP command to the client
+// stream_id - Stream ID for context
+// cmd - The command to send
 func (s *RTMPSession) SendInvokeMessage(stream_id uint32, cmd RTMPCommand) {
 	packet := createBlankRTMPPacket()
 
@@ -136,6 +151,9 @@ func (s *RTMPSession) SendInvokeMessage(stream_id uint32, cmd RTMPCommand) {
 	s.SendSync(bytes)
 }
 
+// Send a DATA message to the client
+// stream_id - Stream ID for context
+// data - The data message to send
 func (s *RTMPSession) SendDataMessage(stream_id uint32, data RTMPData) {
 	packet := createBlankRTMPPacket()
 
@@ -150,6 +168,11 @@ func (s *RTMPSession) SendDataMessage(stream_id uint32, data RTMPData) {
 	s.SendSync(bytes)
 }
 
+// Sends a status message to the client
+// stream_id - Stream ID for context
+// level - Message level
+// code - Status code
+// description - Status description
 func (s *RTMPSession) SendStatusMessage(stream_id uint32, level string, code string, description string) {
 	cmd := RTMPCommand{
 		cmd:       "onStatus",
@@ -184,6 +207,8 @@ func (s *RTMPSession) SendStatusMessage(stream_id uint32, level string, code str
 	s.SendInvokeMessage(stream_id, cmd)
 }
 
+// Send a RtmpSampleAccess data message to the client
+// stream_id - Stream ID
 func (s *RTMPSession) SendSampleAccess(stream_id uint32) {
 	cmd := RTMPData{
 		tag:       "|RtmpSampleAccess",
@@ -201,6 +226,9 @@ func (s *RTMPSession) SendSampleAccess(stream_id uint32) {
 	s.SendDataMessage(stream_id, cmd)
 }
 
+// Responds to the connect message sent by the client
+// tid - transId in the connect message
+// hasObjectEncoding - True only if the client supports object encoding
 func (s *RTMPSession) RespondConnect(tid int64, hasObjectEncoding bool) {
 	cmd := RTMPCommand{
 		cmd:       "_result",
@@ -251,6 +279,8 @@ func (s *RTMPSession) RespondConnect(tid int64, hasObjectEncoding bool) {
 	s.SendInvokeMessage(0, cmd)
 }
 
+// Responds to a createStream message
+// tid - transId in the createStream message
 func (s *RTMPSession) RespondCreateStream(tid int64) {
 	cmd := RTMPCommand{
 		cmd:       "_result",
@@ -273,6 +303,7 @@ func (s *RTMPSession) RespondCreateStream(tid int64) {
 	s.SendInvokeMessage(0, cmd)
 }
 
+// Send the necessary messages to indicate the stream is starting being played
 func (s *RTMPSession) RespondPlay() {
 	s.SendStreamStatus(STREAM_BEGIN, s.playStreamId)
 	s.SendStatusMessage(s.playStreamId, "status", "NetStream.Play.Reset", "Playing and resetting stream.")
@@ -280,6 +311,9 @@ func (s *RTMPSession) RespondPlay() {
 	s.SendSampleAccess(0)
 }
 
+// Sends the metadata to the client playing the stream
+// metaData - Metadata
+// timestamp - Timestamp of the original metadata packet
 func (s *RTMPSession) SendMetadata(metaData []byte, timestamp int64) {
 	if len(metaData) == 0 {
 		return
@@ -302,6 +336,11 @@ func (s *RTMPSession) SendMetadata(metaData []byte, timestamp int64) {
 	s.SendSync(chunks)
 }
 
+// Sends audio codec header
+// Indicates the audio codec being used to the client
+// audioCodec - Codec code
+// aacSequenceHeader - Sequence header for AAC codec
+// timestamp - Timestamp when the information was originally received
 func (s *RTMPSession) SendAudioCodecHeader(audioCodec uint32, aacSequenceHeader []byte, timestamp int64) {
 	if audioCodec != 10 && audioCodec != 13 {
 		return
@@ -324,6 +363,11 @@ func (s *RTMPSession) SendAudioCodecHeader(audioCodec uint32, aacSequenceHeader 
 	s.SendSync(chunks)
 }
 
+// Sends video codec header
+// Indicates the video codec being used to the client
+// videoCodec - Codec code
+// avcSequenceHeader - Sequence header for AVC codec
+// timestamp - Timestamp when the information was originally received
 func (s *RTMPSession) SendVideoCodecHeader(videoCodec uint32, avcSequenceHeader []byte, timestamp int64) {
 	if videoCodec != 7 && videoCodec != 12 {
 		return
@@ -346,6 +390,9 @@ func (s *RTMPSession) SendVideoCodecHeader(videoCodec uint32, avcSequenceHeader 
 	s.SendSync(chunks)
 }
 
+// Builds metadata message to store
+// data - Original metadata packet
+// Returns the encoded message to send to the players
 func (s *RTMPSession) BuildMetadata(data *RTMPData) []byte {
 	cmd := RTMPData{
 		tag:       "onMetaData",
@@ -357,6 +404,8 @@ func (s *RTMPSession) BuildMetadata(data *RTMPData) []byte {
 	return cmd.Encode()
 }
 
+// Sends a cache packet
+// cache - The cache packet
 func (s *RTMPSession) SendCachePacket(cache *RTMPPacket) {
 	packet := createBlankRTMPPacket()
 
@@ -373,6 +422,8 @@ func (s *RTMPSession) SendCachePacket(cache *RTMPPacket) {
 	s.SendSync(chunks)
 }
 
+// Checks if the client is allowed to play streams
+// Returns true only if the client is allowed
 func (s *RTMPSession) CanPlay() bool {
 	r := os.Getenv("RTMP_PLAY_WHITELIST")
 

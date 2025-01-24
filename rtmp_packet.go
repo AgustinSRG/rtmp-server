@@ -6,30 +6,36 @@ import (
 	"encoding/binary"
 )
 
+// The header of a RTMP packet
 type RTMPPacketHeader struct {
-	timestamp int64
+	timestamp int64 // Timestamp of the packet
 
-	fmt uint32
-	cid uint32
+	fmt uint32 // Packet format
 
-	packet_type uint32
+	cid uint32 // Packet channel ID
 
-	stream_id uint32
+	packet_type uint32 // Packet type
+
+	stream_id uint32 // Packet Stream ID
 
 	length uint32 // Payload length
 }
 
+// Represents a RTMP packet
 type RTMPPacket struct {
-	header   RTMPPacketHeader
-	clock    int64
-	payload  []byte
-	capacity uint32
-	bytes    uint32
-	handled  bool
+	header RTMPPacketHeader // Header (metadata)
+	clock  int64            // Used for extended timestamp
+
+	capacity uint32 // Current packet capacity
+	bytes    uint32 // Current packet size
+	handled  bool   // True if the packet was handled
+
+	payload []byte // Packet payload
 }
 
 const RTMP_PACKET_BASE_SIZE = 65
 
+// Creates and returns a blank RTMP packet
 func createBlankRTMPPacket() RTMPPacket {
 	return RTMPPacket{
 		header: RTMPPacketHeader{
@@ -48,6 +54,10 @@ func createBlankRTMPPacket() RTMPPacket {
 	}
 }
 
+// Serializes a basic header for a RTMP packet
+// fmt - Packet format
+// cid - Packet channel ID
+// Returns the serialized bytes
 func rtmpChunkBasicHeaderCreate(fmt uint32, cid uint32) []byte {
 	var out []byte
 
@@ -68,6 +78,9 @@ func rtmpChunkBasicHeaderCreate(fmt uint32, cid uint32) []byte {
 	return out
 }
 
+// Serializes the header of a RTMP packet
+// packet - The packet
+// Returns the serialized bytes
 func rtmpChunkMessageHeaderCreate(packet *RTMPPacket) []byte {
 	out := make([]byte, 0)
 
@@ -98,6 +111,9 @@ func rtmpChunkMessageHeaderCreate(packet *RTMPPacket) []byte {
 	return out
 }
 
+// Creates the chunks to send for a RTMP packet
+// outChunkSize - The chunk size
+// Returns the serialized chunks
 func (packet *RTMPPacket) CreateChunks(outChunkSize int) []byte {
 	chunkBasicHeader := rtmpChunkBasicHeaderCreate(packet.header.fmt, packet.header.cid)
 	chunkBasicHeader3 := rtmpChunkBasicHeaderCreate(RTMP_CHUNK_TYPE_3, packet.header.cid)

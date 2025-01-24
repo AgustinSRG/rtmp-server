@@ -9,5 +9,14 @@
 			"rtmp-server": true,
 			"rtmp-server.exe": true,
 		},
+		"cSpell.words": [
+			"asanrom",
+			"github",
+			"HMAC",
+			"nolint",
+			"rtmp",
+			"RTMP",
+			"RTMPS"
+		],
 	}
 }

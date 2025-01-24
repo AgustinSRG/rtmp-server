@@ -30,12 +30,20 @@ const GenuineFPConst = "Genuine Adobe Flash Player 001"
 
 var GenuineFPConstCrud = append([]byte(GenuineFPConst), RandomCrud...)
 
+// Calculates HMAC
+// message - The message
+// key - Th key
+// Returns the HMAC hash
 func calcHmac(message []byte, key []byte) []byte {
 	h := hmac.New(sha256.New, key)
 	h.Write(message)
 	return h.Sum(nil)
 }
 
+// Compares two signatures
+// sig1 - First signature
+// sig2 - Second signature
+// Returns true only if the two signatures are the same
 func compareSignatures(sig1 []byte, sig2 []byte) bool {
 	if len(sig1) != len(sig2) {
 		return false
@@ -52,6 +60,9 @@ func compareSignatures(sig1 []byte, sig2 []byte) bool {
 	return result
 }
 
+// Gets the basic digest of the RTMP Genuine const of the client
+// buf - Buffer to read from
+// Returns the digest
 func GetClientGenuineConstDigestOffset(buf []byte) uint32 {
 	var offset uint32
 
@@ -61,6 +72,9 @@ func GetClientGenuineConstDigestOffset(buf []byte) uint32 {
 	return offset
 }
 
+// Gets the basic digest of the RTMP Genuine const of the server
+// buf - Buffer to read from
+// Returns the digest
 func GetServerGenuineConstDigestOffset(buf []byte) uint32 {
 	var offset uint32
 
@@ -70,15 +84,18 @@ func GetServerGenuineConstDigestOffset(buf []byte) uint32 {
 	return offset
 }
 
-func detectClientMessageFormat(clientsig []byte) uint32 {
+// Detects message format from client signature
+// clientSig - Client signature
+// Returns the message format as an int
+func detectClientMessageFormat(clientSig []byte) uint32 {
 	var sdl uint32
 	var msg []byte
 	var aux []byte
 
-	sdl = GetServerGenuineConstDigestOffset(clientsig[772:776])
+	sdl = GetServerGenuineConstDigestOffset(clientSig[772:776])
 	msg = make([]byte, sdl)
-	copy(msg, clientsig[0:sdl])
-	msg = append(msg, clientsig[(sdl+SHA256DL):]...)
+	copy(msg, clientSig[0:sdl])
+	msg = append(msg, clientSig[(sdl+SHA256DL):]...)
 
 	if len(msg) < 1504 {
 		aux = make([]byte, 1504-len(msg))
@@ -94,16 +111,16 @@ func detectClientMessageFormat(clientsig []byte) uint32 {
 	var providedSignature []byte
 
 	computedSignature = calcHmac(msg, []byte(GenuineFPConst))
-	providedSignature = clientsig[sdl:(sdl + SHA256DL)]
+	providedSignature = clientSig[sdl:(sdl + SHA256DL)]
 
 	if compareSignatures(computedSignature, providedSignature) {
 		return MESSAGE_FORMAT_2
 	}
 
-	sdl = GetClientGenuineConstDigestOffset(clientsig[8:12])
+	sdl = GetClientGenuineConstDigestOffset(clientSig[8:12])
 	msg = make([]byte, sdl)
-	copy(msg, clientsig[0:sdl])
-	msg = append(msg, clientsig[(sdl+SHA256DL):]...)
+	copy(msg, clientSig[0:sdl])
+	msg = append(msg, clientSig[(sdl+SHA256DL):]...)
 
 	if len(msg) < 1504 {
 		aux = make([]byte, 1504-len(msg))
@@ -116,7 +133,7 @@ func detectClientMessageFormat(clientsig []byte) uint32 {
 	}
 
 	computedSignature = calcHmac(msg, []byte(GenuineFPConst))
-	providedSignature = clientsig[sdl:(sdl + SHA256DL)]
+	providedSignature = clientSig[sdl:(sdl + SHA256DL)]
 
 	if compareSignatures(computedSignature, providedSignature) {
 		return MESSAGE_FORMAT_1
@@ -125,6 +142,9 @@ func detectClientMessageFormat(clientsig []byte) uint32 {
 	return MESSAGE_FORMAT_0
 }
 
+// Generates the first part of the RTMP server handshake response
+// messageFormat - Client message format
+// Returns the response
 func generateS1(messageFormat uint32) []byte {
 	var randomBytes = make([]byte, RTMP_SIG_SIZE-8)
 	_, err := rand.Read(randomBytes)
@@ -185,7 +205,11 @@ func generateS1(messageFormat uint32) []byte {
 	return handshakeBytes
 }
 
-func generateS2(messageFormat uint32, clientsig []byte) []byte {
+// Generates the second part of the RTMP server handshake response
+// messageFormat - Client message format
+// clientSig - Client signature
+// Returns the response
+func generateS2(messageFormat uint32, clientSig []byte) []byte {
 	var randomBytes = make([]byte, RTMP_SIG_SIZE-32)
 	_, err := rand.Read(randomBytes)
 
@@ -197,12 +221,12 @@ func generateS2(messageFormat uint32, clientsig []byte) []byte {
 	var challengeKeyOffset uint32
 
 	if messageFormat == MESSAGE_FORMAT_1 {
-		challengeKeyOffset = GetClientGenuineConstDigestOffset(clientsig[8:12])
+		challengeKeyOffset = GetClientGenuineConstDigestOffset(clientSig[8:12])
 	} else {
-		challengeKeyOffset = GetServerGenuineConstDigestOffset(clientsig[772:776])
+		challengeKeyOffset = GetServerGenuineConstDigestOffset(clientSig[772:776])
 	}
 
-	var challengeKey = clientsig[challengeKeyOffset:(challengeKeyOffset + 32)]
+	var challengeKey = clientSig[challengeKeyOffset:(challengeKeyOffset + 32)]
 
 	var h []byte
 	var signature []byte
@@ -227,22 +251,25 @@ func generateS2(messageFormat uint32, clientsig []byte) []byte {
 	return s2Bytes
 }
 
-func generateS0S1S2(clientsig []byte) []byte {
+// Generates a RTMP handshake response
+// clientSig - Client signature received
+// Returns the response to send to the client
+func generateS0S1S2(clientSig []byte) []byte {
 	var clientType []byte
 	var messageFormat uint32
 	var allBytes []byte
 
 	clientType = []byte{RTMP_VERSION}
-	messageFormat = detectClientMessageFormat(clientsig)
+	messageFormat = detectClientMessageFormat(clientSig)
 
 	if messageFormat == MESSAGE_FORMAT_0 {
 		LogDebug("Using basic handshake")
-		allBytes = append(clientType, clientsig...)
-		allBytes = append(allBytes, clientsig...)
+		allBytes = append(clientType, clientSig...)
+		allBytes = append(allBytes, clientSig...)
 	} else {
 		LogDebug("Using S1S2 handshake")
 		s1 := generateS1(messageFormat)
-		s2 := generateS2(messageFormat, clientsig)
+		s2 := generateS2(messageFormat, clientSig)
 		allBytes = append(clientType, s1...)
 		allBytes = append(allBytes, s2...)
 	}
