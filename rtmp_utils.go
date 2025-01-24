@@ -3,9 +3,7 @@
 package main
 
 import (
-	"os"
 	"regexp"
-	"strconv"
 	"strings"
 )
 
@@ -272,19 +270,8 @@ func decodeRTMPData(data []byte) RTMPData {
 // Validates stream ID
 // str - Stream ID
 // Returns true only if valid
-func validateStreamIDString(str string) bool {
-	var ID_MAX_LENGTH = 128
-	idCustomMaxLength := os.Getenv("ID_MAX_LENGTH")
-
-	if idCustomMaxLength != "" {
-		var e error
-		ID_MAX_LENGTH, e = strconv.Atoi(idCustomMaxLength)
-		if e != nil {
-			ID_MAX_LENGTH = 128
-		}
-	}
-
-	if len(str) > ID_MAX_LENGTH {
+func validateStreamIDString(str string, maxLength int) bool {
+	if len(str) > maxLength {
 		return false
 	}
 

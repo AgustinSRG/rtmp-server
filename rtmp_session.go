@@ -541,7 +541,7 @@ func (s *RTMPSession) HandleConnect(cmd *RTMPCommand) bool {
 	s.channel = cmd.GetArg("cmdObj").GetProperty("app").GetString()
 
 	// Validate channel
-	if !validateStreamIDString(s.channel) {
+	if !validateStreamIDString(s.channel, s.server.streamIdMaxLength) {
 		LogRequest(s.id, s.ip, "INVALID CHANNEL '"+s.channel+"'")
 		return false
 	}
@@ -587,7 +587,7 @@ func (s *RTMPSession) HandlePublish(cmd *RTMPCommand, packet *RTMPPacket) bool {
 	}
 
 	// Validate key
-	if !validateStreamIDString(s.key) {
+	if !validateStreamIDString(s.key, s.server.streamIdMaxLength) {
 		s.SendStatusMessage(s.publishStreamId, "error", "NetStream.Publish.BadName", "Invalid stream key provided")
 		return false
 	}
