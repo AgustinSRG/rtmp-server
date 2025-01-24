@@ -165,7 +165,11 @@ func (c *ControlServerConnection) Send(msg messages.RPCMessage) bool {
 		return false
 	}
 
-	c.connection.WriteMessage(websocket.TextMessage, []byte(msg.Serialize()))
+	err := c.connection.WriteMessage(websocket.TextMessage, []byte(msg.Serialize()))
+
+	if err != nil {
+		return false
+	}
 
 	if LOG_DEBUG_ENABLED {
 		LogDebug("[WS-CONTROL] >>>\n" + string(msg.Serialize()))
