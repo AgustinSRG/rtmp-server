@@ -5,7 +5,9 @@ import "github.com/joho/godotenv"
 func main() {
 	_ = godotenv.Load() // Load env vars
 
-	LogInfo("RTMP Go Server (Version 1.0.0)")
+	InitLog() // Initializes log utils
+
+	LogInfo("RTMP Server (Golang Implementation)")
 
 	server := CreateRTMPServer()
 
