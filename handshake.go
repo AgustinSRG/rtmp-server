@@ -28,8 +28,6 @@ var GenuineFMSConstCrud = append([]byte(GenuineFMSConst), RandomCrud...)
 
 const GenuineFPConst = "Genuine Adobe Flash Player 001"
 
-var GenuineFPConstCrud = append([]byte(GenuineFPConst), RandomCrud...)
-
 // Calculates HMAC
 // message - The message
 // key - Th key
