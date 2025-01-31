@@ -139,9 +139,7 @@ func (s *AMFDecodingStream) amf3decUI29() uint32 {
 		len++
 		val = (val << 7) + uint32(b&0x7F)
 
-		if len < 5 || b > 0x7F {
-			ended = true
-		}
+		ended = !(len < 5 || b > 0x7F)
 	}
 
 	if len == 5 {

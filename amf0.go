@@ -235,7 +235,7 @@ func amf0EncodeOne(val AMF0Value) []byte {
 	case AMF0_TYPE_XML_DOC:
 		result = append(result, amf0EncodeString(val.str_val)...)
 	case AMF0_TYPE_LONG_STRING:
-		result = append(result, amf0EncodeString(val.str_val)...)
+		result = append(result, amf0EncodeLongString(val.str_val)...)
 	case AMF0_TYPE_OBJECT:
 		result = append(result, amf0EncodeObject(val.obj_val)...)
 	case AMF0_TYPE_REF:
@@ -276,6 +276,13 @@ func amf0EncodeString(str string) []byte {
 	b := []byte(str)
 	l := make([]byte, 2)
 	binary.BigEndian.PutUint16(l, uint16(len(b)))
+	return append(l, b...)
+}
+
+func amf0EncodeLongString(str string) []byte {
+	b := []byte(str)
+	l := make([]byte, 4)
+	binary.BigEndian.PutUint32(l, uint32(len(b)))
 	return append(l, b...)
 }
 
