@@ -466,7 +466,18 @@ func (s *RTMPSession) HandlePacket(packet *RTMPPacket) bool {
 	case RTMP_TYPE_SET_CHUNK_SIZE:
 		LogDebugSession(s.id, s.ip, "Received packet: RTMP_TYPE_SET_CHUNK_SIZE")
 		csb := packet.payload[0:4]
+
 		s.inChunkSize = binary.BigEndian.Uint32(csb)
+
+		if s.inChunkSize < RTMP_CHUNK_SIZE {
+			LogDebugSession(s.id, s.ip, "Chunk size too small.")
+			return false
+		}
+
+		if s.inChunkSize > RTMP_MAX_CHUNK_SIZE {
+			LogDebugSession(s.id, s.ip, "Chunk size too large.")
+			return false
+		}
 	case RTMP_TYPE_WINDOW_ACKNOWLEDGEMENT_SIZE:
 		LogDebugSession(s.id, s.ip, "Received packet: RTMP_TYPE_WINDOW_ACKNOWLEDGEMENT_SIZE")
 		csb := packet.payload[0:4]
