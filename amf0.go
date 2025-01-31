@@ -124,14 +124,6 @@ func (v *AMF0Value) IsUndefined() bool {
 	}
 }
 
-func (v *AMF0Value) IsNull() bool {
-	if v.IsAMF3() {
-		return v.amf3.amf_type == AMF3_TYPE_NULL
-	} else {
-		return v.amf_type == AMF0_TYPE_NULL
-	}
-}
-
 func (v *AMF0Value) GetBool() bool {
 	if v.IsAMF3() {
 		return v.amf3.GetBool()
@@ -152,27 +144,11 @@ func (v *AMF0Value) GetInteger() int64 {
 	}
 }
 
-func (v *AMF0Value) GetDouble() float64 {
-	if v.IsAMF3() {
-		return v.amf3.float_val
-	} else {
-		return v.float_val
-	}
-}
-
 func (v *AMF0Value) GetString() string {
 	if v.IsAMF3() {
 		return v.amf3.str_val
 	} else {
 		return v.str_val
-	}
-}
-
-func (v *AMF0Value) GetByteArray() []byte {
-	if v.IsAMF3() {
-		return v.amf3.bytes_val
-	} else {
-		return []byte(v.str_val)
 	}
 }
 
@@ -192,14 +168,6 @@ func (v *AMF0Value) GetProperty(propName string) *AMF0Value {
 	} else {
 		n := createAMF0Value(AMF0_TYPE_UNDEFINED)
 		return &n
-	}
-}
-
-func (v *AMF0Value) GetArray() []*AMF0Value {
-	if v.IsAMF3() {
-		return make([]*AMF0Value, 0)
-	} else {
-		return v.array_val
 	}
 }
 
