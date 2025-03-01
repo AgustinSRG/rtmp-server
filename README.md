@@ -1,6 +1,11 @@
 # RTMP Server (Go Implementation)
 
+[![Go](https://github.com/AgustinSRG/rtmp-server/actions/workflows/go.yml/badge.svg)](https://github.com/AgustinSRG/rtmp-server/actions/workflows/go.yml)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat)](./LICENSE)
+
 This is a RTMP (Real Time Messaging Protocol) server for live streaming broadcasting, implemented in Go.
+
+Note: An alternative implementation of this project in Rust is available. Check it out here: [RTMP Server (Rust Implementation)](https://github.com/AgustinSRG/rtmp-server-rs).
 
 ## Compilation
 
