@@ -1,6 +1,6 @@
 module github.com/AgustinSRG/rtmp-server
 
-go 1.22.0
+go 1.27.3
 
 require (
 	github.com/AgustinSRG/go-simple-rpc-message v1.0.1
